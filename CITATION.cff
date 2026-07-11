@@ -9,10 +9,10 @@ abstract: >-
   most surprised. Pure NumPy/SciPy core; runs offline.
 type: software
 authors:
-  - given-names: "[GIVEN NAME]"
-    family-names: "[FAMILY NAME]"
+  - given-names: "Md Rafiur"
+    family-names: "Rahman"
     email: rafiur2810@gmail.com
-    # affiliation: "[University / Institution]"
+    affiliation: "Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh"
 version: "0.1.0"
 license: MIT
 repository-code: "https://github.com/[USERNAME]/genocortex"

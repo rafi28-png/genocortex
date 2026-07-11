@@ -1,14 +1,9 @@
 # The Fractal Predictive Cortex: a training-free, alignment-free, self-organising model that unifies prediction, anomaly detection, classification, and phylogenetics for biological sequences
 
-**[AUTHOR NAME]¹, [Co-author / Supervisor Name]²**
+**Md Rafiur Rahman¹**
 
-¹ [Department, University, City, Country] — *corresponding author:*
-`rafiur2810@gmail.com`
-² [Supervisor's Department, Institution] *(recommended: add a faculty mentor)*
-
-> ⚠️ *Author placeholders — replace `[AUTHOR NAME]` and affiliations before
-> submission. A faculty co-author is strongly advised for a peer-reviewed
-> submission.*
+¹ Department of Biochemistry and Biotechnology, North South University, Dhaka,
+Bangladesh — *corresponding author:* `rafiur2810@gmail.com`
 
 **Keywords:** alignment-free sequence comparison · Chaos Game Representation ·
 predictive coding · minimum description length · self-organising maps ·
@@ -112,9 +107,9 @@ single-purpose distance tools do not provide.
 
 ### 1.1 Related work and the precise locus of novelty
 
-A systematic literature review (24 claims, independently verified) establishes
-that **every individual ingredient of FPC is prior art**, and pins down exactly
-what is not:
+Two systematic, adversarially-verified literature reviews (one broad, one focused
+on the hardest residual claims) establish that **every individual ingredient of
+FPC is prior art**, and pin down exactly what is not:
 
 * **CGR + neural / self-organising models.** CGR/FCGR has been fed to CNNs
   (*CGRclust*; Alipour, Hill & Kari, 2024) and combined with a static k-mer
@@ -137,16 +132,35 @@ what is not:
   Cover & Thomas), and the FCGR of order *k* is provably equivalent to the k-mer
   frequency vector at that order (He, Kari & Millán-Arias, 2025) — so neither the
   objective nor the representation is itself novel.
+* **Growing neural models on sequences already exist** — for clustering, not
+  prediction. A growing self-organising map has been applied to protein-sequence
+  classification (Ahmad, Alahakoon & Chau, 2010) and a neural gas to DNA k-mer
+  barcodes (Fiannaca et al., 2015). Crucially, these grow units on *vector-
+  quantisation* error (or ART vigilance) to cluster fixed feature vectors — **not**
+  on *next-symbol prediction* error, and not for autoregressive prediction.
+* **The cross-entropy distance itself is NOT novel.** Defining a genomic distance
+  as the bits to describe *x* under a predictor trained on *y* — i.e. the
+  cross-entropy / relative compression of one sequence's learned model on another,
+  used to build phylogenetic trees — is exactly Pratas, Silva & Pinho's
+  **Normalized Relative Compression** (2018) and **NCCD** (Pratas & Pinho, 2014),
+  and the KL-between-per-sequence-Markov-models trees of Bai (2013) and Chang &
+  Wang (2011). We claim **no novelty** for the distance definition and must
+  benchmark against these (future work); our only difference is the *substrate*
+  (a growing predictor rather than a finite-context Markov model).
 
-**What is left, and is our contribution:** a single model that grows predictive
-memory *specifically where it is most surprised*, in CGR space, and derives
-prediction, detection, classification, and phylogeny from that one surprise
-signal. The review found **no prior method** that (a) uses grow-where-surprised
-memory for sequence prediction, (b) applies an explicit predictive-coding framing
-to DNA/protein, or (c) defines phylogenetic distance as the cross-entropy between
-two sequences' *learned online predictive models* (rather than compressed sizes,
-as in NCD). We therefore frame FPC as a novel **unification/architecture**, and
-(per the AFproject benchmark, below) make no claim of universal superiority.
+**What is left, and is our contribution.** After the corrections above, the
+defensible novelty is narrow and specific: (a) growth driven by **next-symbol
+prediction error** ("grow-where-surprised") in an *online, autoregressive*
+predictor of biological sequences — every prior growing model on sequences grows
+on quantisation error for clustering, not on predictive surprise; (b) an explicit
+**predictive-coding framing** of sequence modelling, for which the review found no
+prior genomic/proteomic application; and (c) the **unification** of these with the
+CGR substrate so that four capabilities and a 3-D interpretable map arise from one
+surprise signal — no surveyed method combines two or more of these elements. We
+therefore frame FPC honestly as a novel **unification/architecture with a
+prediction-error-driven growth rule**, *not* as a new distance, objective,
+representation, or classifier, and (per the AFproject no-free-lunch finding) make
+no claim of universal superiority.
 
 ---
 
@@ -471,10 +485,13 @@ its own prediction failures, rather than tiling space uniformly.
   deep-divergence real phylogeny, FFP beats it; on short protein families it does
   not beat a k-mer baseline. FPC trades peak per-task performance for generality
   and interpretability.
-* **No individual component is novel.** As §1.1 makes explicit, CGR, self-organising
-  maps, the least-surprised-model classifier, and surprise = MDL are all prior art;
-  the contribution is only their unification. Readers wanting a from-scratch
-  invention will not find one here.
+* **No individual component is novel; the distance in particular is not.** As §1.1
+  makes explicit, CGR, self-organising maps, the least-surprised-model classifier,
+  surprise = MDL, and — importantly — the cross-entropy/relative-compression
+  phylogenetic distance (NRC, NCCD, KL-between-Markov-models) are all prior art.
+  The contribution is the prediction-error-driven growth rule and the unification,
+  not the distance. A direct head-to-head benchmark against NRC and NCCD is a
+  necessary next step we have not yet run.
 * **Data-hungry (learned model).** FPC needs enough sequence to learn its
   generative model; on short, few-example classes (e.g. the ~150 aa proteins of
   §3.8) simple k-mer composition wins.
@@ -528,9 +545,9 @@ paper is reproduced by the commands in §6.
 
 ## Author contributions
 
-[AUTHOR NAME] conceived the method, implemented the software, designed and ran
-the experiments, and wrote the manuscript. [Supervisor], if added, supervised the
-work and revised the manuscript. *(Update to reflect the final author list.)*
+M.R.R. conceived the method, implemented the software, designed and ran the
+experiments, and wrote the manuscript. *(If a faculty mentor is added, note their
+supervision and manuscript revision here.)*
 
 ## Competing interests
 
@@ -585,6 +602,28 @@ double-checked against the publisher of record before submission.
 - ✓ (F)CGR = k-mer equivalence: J. He, L. Kari, F. Millán-Arias. *On the
   equivalence of Frequency Chaos Game Representation and k-mer frequency
   vectors.* Springer, 2025. doi:10.1007/978-3-032-15641-9_15; arXiv:2506.22172
+- ✓ **Cross-entropy / relative-compression distance (prior art for our distance):**
+  D. Pratas, R. M. Silva, A. J. Pinho. *Comparison of compression-based measures
+  with application to the evolution of primate genomes* (Normalized Relative
+  Compression, NRC). Entropy, 20(6):393, 2018. doi:10.3390/e20060393
+- ✓ D. Pratas, A. J. Pinho. *A conditional compression distance that unveils
+  insights of the genomic evolution* (NCCD). Data Compression Conference (DCC),
+  2014. arXiv:1401.4134
+- ✓ Bai, Xu & Liu. *Weighted relative entropy for phylogenetic tree based on a
+  2-step Markov model.* Mathematical Biosciences, 246(1):8–13, 2013.
+  doi:10.1016/j.mbs.2013.09.004
+- ✓ Chang & Wang. *Weighted relative entropy for alignment-free sequence
+  comparison based on a Markov model.* J. Biomolecular Structure & Dynamics,
+  28(4):545–555, 2011.
+- ✓ **Growing neural models on biological sequences (prior art for the growing
+  substrate):** Ahmad, Alahakoon & Chau. *Cluster identification and separation
+  in the growing self-organizing map: application in protein sequence
+  classification.* Neural Computing & Applications, 19(4):531–542, 2010.
+  doi:10.1007/s00521-009-0300-0
+- ✓ Fiannaca, La Rosa, Rizzo & Urso. *A k-mer-based barcode DNA classification
+  methodology based on spectral representation and a neural gas network.*
+  Artificial Intelligence in Medicine, 64(3):173–184, 2015.
+  doi:10.1016/j.artmed.2015.06.002
 
 **Benchmark and standard tools (verified):**
 
