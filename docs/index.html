@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenoCortex — the Fractal Predictive Cortex</title>
+<meta name="description" content="A training-free, alignment-free, self-organising model for biological sequences that unifies prediction, anomaly detection, classification, and phylogenetics from one surprise-minimisation objective.">
+<style>
+  :root{
+    --bg:#0d0d0d; --surface:#17181a; --surface2:#1e2023; --border:rgba(255,255,255,.09);
+    --ink:#f4f5f7; --muted:#a8abb0; --accent:#3987e5; --accent-2:#1baf7a; --warn:#eb6834;
+    --radius:14px; --maxw:1080px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+  h1,h2,h3{line-height:1.2; margin:0 0 .4em}
+  h2{font-size:1.7rem; margin-top:0}
+  .muted{color:var(--muted)}
+  section{padding:64px 0; border-top:1px solid var(--border)}
+  section:first-of-type{border-top:none}
+
+  /* hero */
+  .hero{position:relative; padding:74px 0 60px; overflow:hidden}
+  .hero::before{
+    content:""; position:absolute; inset:-30% -10% auto -10%; height:520px;
+    background:radial-gradient(60% 60% at 30% 20%, rgba(57,135,229,.20), transparent 70%),
+               radial-gradient(50% 50% at 85% 10%, rgba(27,175,122,.14), transparent 70%);
+    z-index:0; filter:blur(10px);
+  }
+  .hero .wrap{position:relative; z-index:1}
+  .eyebrow{color:var(--accent); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:.78rem}
+  .hero h1{font-size:2.6rem; margin:.25em 0 .35em; letter-spacing:-.5px}
+  .hero p.lede{font-size:1.18rem; color:#d7d9dd; max-width:760px}
+  .byline{margin-top:14px; color:var(--muted); font-size:.95rem}
+  .btns{display:flex; flex-wrap:wrap; gap:12px; margin-top:26px}
+  .btn{display:inline-block; padding:11px 18px; border-radius:10px; font-weight:600; border:1px solid var(--border)}
+  .btn.primary{background:var(--accent); color:#04101f; border-color:transparent}
+  .btn.primary:hover{background:#5598e7; text-decoration:none}
+  .btn.ghost{background:var(--surface); color:var(--ink)}
+  .btn.ghost:hover{background:var(--surface2); text-decoration:none}
+  .tags{margin-top:22px; display:flex; flex-wrap:wrap; gap:8px}
+  .tag{font-size:.78rem; color:var(--muted); background:var(--surface); border:1px solid var(--border); padding:5px 10px; border-radius:999px}
+
+  /* generic grid */
+  .grid{display:grid; gap:18px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:900px){.g4,.g3{grid-template-columns:repeat(2,1fr)} .hero h1{font-size:2.1rem}}
+  @media(max-width:620px){.g4,.g3,.g2{grid-template-columns:1fr}}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px}
+  .card h3{font-size:1.05rem}
+  .card p{margin:.3em 0 0; color:var(--muted); font-size:.94rem}
+  .card .k{color:var(--accent); font-weight:700}
+
+  /* demo cards with image */
+  .demo{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column}
+  .demo img{width:100%; height:190px; object-fit:cover; background:#000; display:block}
+  .demo .body{padding:16px 18px}
+  .demo h3{font-size:1.05rem; margin-bottom:.25em}
+  .demo p{color:var(--muted); font-size:.9rem; margin:0 0 .8em}
+  .demo .open{font-weight:600; font-size:.9rem}
+
+  /* results table */
+  table{width:100%; border-collapse:collapse; font-size:.92rem; overflow:hidden; border-radius:12px}
+  th,td{padding:11px 12px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+  thead th{background:var(--surface2); color:#d7d9dd; font-weight:600}
+  tbody tr:last-child td{border-bottom:none}
+  td .fpc{color:var(--accent); font-weight:700}
+  .fig{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px}
+  .fig img{width:100%; border-radius:8px; display:block}
+  .fig figcaption{color:var(--muted); font-size:.85rem; margin-top:8px}
+
+  pre{background:#0b0c0d; border:1px solid var(--border); border-radius:12px; padding:16px; overflow:auto; font-size:.86rem}
+  code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+  .callout{background:linear-gradient(180deg,rgba(57,135,229,.08),transparent); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:16px 18px; color:#d7d9dd}
+  footer{border-top:1px solid var(--border); padding:34px 0 60px; color:var(--muted); font-size:.9rem}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Fractal Predictive Cortex</div>
+    <h1>One self-organising model for four sequence tasks</h1>
+    <p class="lede">GenoCortex reads a DNA or protein sequence, teaches itself to predict what comes next, and grows memory exactly where it is most surprised. From that single "surprise" signal it performs prediction, mutation/anomaly detection, classification, and phylogenetics — with no training labels, no alignment, no pretrained weights, and no fixed k&#8209;mer order.</p>
+    <div class="byline">Md Rafiur Rahman · Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh</div>
+    <div class="btns">
+      <a class="btn primary" href="#demos">See it think (3-D)</a>
+      <a class="btn ghost" href="https://github.com/rafi28-png/genocortex" target="_blank" rel="noopener">Code on GitHub</a>
+      <a class="btn ghost" href="paper.pdf" target="_blank" rel="noopener">Read the paper (PDF)</a>
+    </div>
+    <div class="tags">
+      <span class="tag">NumPy / SciPy only</span>
+      <span class="tag">runs offline · no external API</span>
+      <span class="tag">alignment-free</span>
+      <span class="tag">training-free</span>
+      <span class="tag">interpretable</span>
+    </div>
+  </div>
+</header>
+
+<section id="idea">
+  <div class="wrap">
+    <h2>The idea</h2>
+    <p class="muted" style="max-width:820px">
+      The model streams a sequence through a <strong>Chaos Game Representation</strong>, which turns the recent
+      context into a point in the plane. It keeps a growing set of predictive <strong>prototypes</strong> in that
+      space and adds a new one wherever its own next-symbol prediction is weakest. Its only objective is to
+      minimise cumulative <strong>surprise</strong> (&minus;log&#8322; P of what actually comes next), which equals
+      the sequence's description length under the model. The four capabilities are all read-outs of that one number.
+    </p>
+    <div class="grid g4" style="margin-top:26px">
+      <div class="card"><h3>Predict</h3><p>The next-symbol distribution <code>P(next | context)</code>.</p></div>
+      <div class="card"><h3>Detect</h3><p>Mutations and foreign DNA show up as local rises in surprise, with robust z-scores and p-values.</p></div>
+      <div class="card"><h3>Classify</h3><p>Assign a query to the model that is <span class="k">least surprised</span> by it.</p></div>
+      <div class="card"><h3>Discover</h3><p>Phylogeny from a symmetric cross-entropy between two sequences' learned models.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="demos">
+  <div class="wrap">
+    <h2>See it think — interactive 3-D</h2>
+    <p class="muted" style="max-width:820px">Because the model lives in a 2-D geometry, its internal state can be
+      shown directly. These open interactive, rotatable 3-D views in a new tab (each is a self-contained page).</p>
+    <div class="grid g2" style="margin-top:24px">
+      <a class="demo" href="i/cognitive_map.html" target="_blank" rel="noopener">
+        <img src="img/cognitive_map.png" loading="lazy" alt="Surprise landscape of a learned genome">
+        <div class="body"><h3>Cognitive map</h3><p>A learned genome's "surprise landscape": valleys are mastered motifs, peaks are novelty; memory cells float above, coloured by the base they predict.</p><span class="open">Open interactive 3-D →</span></div>
+      </a>
+      <a class="demo" href="i/anomaly_map.html" target="_blank" rel="noopener">
+        <img src="img/anomaly_map.png" loading="lazy" alt="Surprise landscape with a foreign insert">
+        <div class="body"><h3>Anomaly landscape</h3><p>A reference genome's surprise spikes over a spliced-in foreign segment — how the model localises inserts and contamination.</p><span class="open">Open interactive 3-D →</span></div>
+      </a>
+      <a class="demo" href="i/real_phylogeny.html" target="_blank" rel="noopener">
+        <img src="img/real_phylogeny.png" loading="lazy" alt="Coronavirus phylogeny constellation">
+        <div class="body"><h3>Coronavirus phylogeny</h3><p>Seven real coronaviruses placed unsupervised by cross-entropy distance; the closely related pairs group correctly.</p><span class="open">Open interactive 3-D →</span></div>
+      </a>
+      <a class="demo" href="i/big_phylogeny.html" target="_blank" rel="noopener">
+        <img src="img/big_phylogeny.png" loading="lazy" alt="28 viral genomes across five families">
+        <div class="body"><h3>28 genomes, 5 families</h3><p>Coronaviridae, Flaviviridae, Filoviridae, Picornaviridae, Retroviridae — each family occupies its own region of the map.</p><span class="open">Open interactive 3-D →</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <h2>Results — reported honestly</h2>
+    <p class="muted" style="max-width:820px">Every number is reproducible from the open-source scripts (fixed seeds; real data cached after first download). The point is not to beat every specialised tool, but that one model does all of these together. Where it loses, that is stated too.</p>
+    <div style="margin-top:22px; overflow-x:auto">
+    <table>
+      <thead><tr><th>Task</th><th>FPC</th><th>Baselines</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td>Phylogeny — 25 synthetic trees (Pearson r)</td><td class="fpc">0.93</td><td>FFP 0.93 · NCCD 0.93 · NRC 0.92 · Mash 0.91 · k-mer cos 0.78</td><td>statistically tied with FFP/Mash/NRC/NCCD; beats k-mer cosine</td></tr>
+        <tr><td>Phylogeny — 17 real mitogenomes (Robinson–Foulds, lower better)</td><td class="fpc">0.43</td><td>NRC 0.36 · NCCD/FFP/Mash 0.43 · k-mer cos 0.71</td><td>ties the standard tools; slightly behind NRC</td></tr>
+        <tr><td>Short-read classification (150 bp)</td><td class="fpc">100%</td><td>k-mer+1NN 97% · logistic 94%</td><td>robust as reads shorten</td></tr>
+        <tr><td>Compression (bits/symbol)</td><td class="fpc">beats gzip</td><td>near best hand-tuned Markov-k</td><td>competitive, no k to choose</td></tr>
+        <tr><td>Foreign-insert detection (ROC-AUC)</td><td class="fpc">~1.0</td><td>8-mer novelty ~1.0</td><td>parity; adds per-position surprise</td></tr>
+        <tr><td>Deep-divergence viral families (purity)</td><td>0.82</td><td class="fpc" style="color:var(--warn)">FFP 0.93</td><td>FFP is more accurate here</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="grid g2" style="margin-top:24px">
+      <figure class="fig"><img src="img/fig11_rf_benchmark.png" loading="lazy" alt="Robinson-Foulds benchmark"><figcaption>Genome phylogeny on real mammalian mitogenomes (Robinson–Foulds vs a reference tree). FPC matches Mash, FFP and NCCD.</figcaption></figure>
+      <figure class="fig"><img src="img/fig8_phylo_stats.png" loading="lazy" alt="Phylogeny correlation across 25 trees"><figcaption>Distance–vs–truth correlation across 25 independent trees. FPC is indistinguishable from the strong methods; all beat k-mer cosine.</figcaption></figure>
+      <figure class="fig"><img src="img/fig1_compression.png" loading="lazy" alt="Compression comparison"><figcaption>One adaptive model vs. having to pick k: FPC beats gzip and low-order Markov without order selection.</figcaption></figure>
+      <figure class="fig"><img src="img/fig7_big_dendrogram.png" loading="lazy" alt="Unsupervised dendrogram of 28 viral genomes"><figcaption>Unsupervised dendrogram of 28 viral genomes; four of five families form clean clades.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="run">
+  <div class="wrap">
+    <h2>Run it yourself</h2>
+    <p class="muted">Pure NumPy/SciPy core. Python ≥ 3.10.</p>
+    <pre><code>git clone https://github.com/rafi28-png/genocortex.git
+cd genocortex
+pip install -e .[all]
+
+python -c "from fpc import FractalPredictiveCortex, DNA, datasets; \
+m=FractalPredictiveCortex(DNA, order=8); \
+print(m.fit(DNA.encode(datasets.markov_sequence(20000, DNA, seed=1))))"
+
+python examples/make_visuals.py      # regenerate the interactive 3-D maps
+python run_all.py --real             # reproduce every result and figure</code></pre>
+    <div class="callout" style="margin-top:20px">
+      The engine is <strong>alphabet-agnostic</strong>: the same code runs on DNA, RNA, or protein by
+      swapping the alphabet. It depends on no external service and runs fully offline.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div><strong>GenoCortex — the Fractal Predictive Cortex</strong></div>
+    <div style="margin-top:6px">Md Rafiur Rahman, Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh.</div>
+    <div style="margin-top:10px">
+      <a href="https://github.com/rafi28-png/genocortex" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="paper.pdf" target="_blank" rel="noopener">Paper (PDF)</a> ·
+      MIT License
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
