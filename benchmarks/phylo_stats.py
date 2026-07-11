@@ -31,7 +31,7 @@ from scipy.spatial.distance import cosine
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fpc import DNA, tasks, datasets
-from benchmarks.baselines import kmer_vector
+from benchmarks.baselines import kmer_vector, nrc_nccd_distance_matrices
 from benchmarks.afbaselines import mash_distance_matrix, ffp_distance_matrix
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -71,7 +71,7 @@ def bootstrap_ci(x, iters=5000, seed=0):
 
 
 def main():
-    methods = ["FPC", "FFP", "Mash", "5-mer cos"]
+    methods = ["FPC", "NRC", "NCCD", "FFP", "Mash", "5-mer cos"]
     corrs = {m: [] for m in methods}
 
     for t in range(N_TREES):
@@ -85,6 +85,9 @@ def main():
         truth = phy.truth_distance
 
         corrs["FPC"].append(_corr_to_truth(tasks.distance_matrix(seqs, DNA, order=6), names, truth))
+        d_nrc, d_nccd = nrc_nccd_distance_matrices(seqs, DNA, k=8)
+        corrs["NRC"].append(_corr_to_truth(d_nrc, names, truth))
+        corrs["NCCD"].append(_corr_to_truth(d_nccd, names, truth))
         corrs["FFP"].append(_corr_to_truth(ffp_distance_matrix(seqs, DNA, k=6), names, truth))
         corrs["Mash"].append(_corr_to_truth(mash_distance_matrix(seqs, k=12, sketch_size=500), names, truth))
         corrs["5-mer cos"].append(_corr_to_truth(_kmer_cos(seqs), names, truth))
@@ -100,7 +103,7 @@ def main():
                       "ci95": [lo, hi], "n": len(x)}
     # paired tests: FPC vs each baseline
     tests = {}
-    for m in ["FFP", "Mash", "5-mer cos"]:
+    for m in ["NRC", "NCCD", "FFP", "Mash", "5-mer cos"]:
         stat, p = wilcoxon(corrs["FPC"], corrs[m])
         diff = np.mean(np.array(corrs["FPC"]) - np.array(corrs[m]))
         tests[f"FPC_vs_{m}"] = {"mean_diff": float(diff), "wilcoxon_p": float(p)}
@@ -122,7 +125,9 @@ def main():
     # figure: boxplot of per-tree correlations
     fig, ax = plt.subplots(figsize=(7.4, 4.6))
     data = [corrs[m] for m in methods]
-    colors = [C_FPC, C_FFP, C_MASH, C_KM]
+    palette = {"FPC": C_FPC, "NRC": "#4a3aa7", "NCCD": "#9085e9",
+               "FFP": C_FFP, "Mash": C_MASH, "5-mer cos": C_KM}
+    colors = [palette[m] for m in methods]
     bp = ax.boxplot(data, tick_labels=methods, patch_artist=True, widths=0.6, showmeans=True)
     for patch, c in zip(bp["boxes"], colors):
         patch.set_facecolor(c); patch.set_alpha(0.55)

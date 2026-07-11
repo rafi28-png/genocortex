@@ -92,6 +92,47 @@ class KmerMarkov:
         return hit / n if n else float("nan")
 
 
+def nrc_nccd_distance_matrices(sequences, alphabet: Alphabet = DNA, k: int = 9):
+    """Prior-art cross-entropy distances: NRC and NCCD (finite-context substrate).
+
+    Faithful single-order finite-context-model realisations of the two published
+    distances the FPC distance must be compared against:
+
+      * NRC  (Normalized Relative Compression; Pratas, Silva & Pinho 2018):
+        train a Markov model on y, freeze it, measure bits/symbol of x under it,
+        normalised by log2|A|. Symmetrised for a distance.
+      * NCCD (Normalized Conditional Compression Distance; Pratas & Pinho 2014):
+        NCCD(x,y) = max{C(x|y), C(y|x)} / max{C(x), C(y)}, where C(x|y) is the
+        code length of x under y's model and C(x) is x under its own model.
+
+    (The published versions use a *mixture* of context models up to k~20 with
+    substitution tolerance; here we use one order-k dense FCM — a faithful,
+    memory-bounded approximation, matched on k. Returns (D_nrc, D_nccd).)
+    """
+    import math
+    ids = [alphabet.encode(s) for s in sequences]
+    n = len(sequences)
+    models = [KmerMarkov(alphabet, k).fit(x) for x in ids]
+    ce = np.zeros((n, n))                       # ce[i,j] = bits/symbol of seq_i under model_j
+    for i in range(n):
+        for j in range(n):
+            ce[i, j] = models[j].cross_entropy(ids[i])
+    lengths = np.array([len(x) for x in ids], dtype=np.float64)
+    log_a = math.log2(alphabet.size)
+
+    nrc = ce / log_a
+    c_self = np.array([ce[i, i] * lengths[i] for i in range(n)])   # C(x) under own model
+    d_nrc = np.zeros((n, n))
+    d_nccd = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            d_nrc[i, j] = d_nrc[j, i] = 0.5 * (nrc[i, j] + nrc[j, i])
+            c_xy = ce[i, j] * lengths[i]        # C(x|y)
+            c_yx = ce[j, i] * lengths[j]        # C(y|x)
+            d_nccd[i, j] = d_nccd[j, i] = max(c_xy, c_yx) / max(c_self[i], c_self[j])
+    return d_nrc, d_nccd
+
+
 def gzip_bits(seq: str) -> float:
     """Bits per symbol achieved by gzip -- a model-free code-length reference."""
     raw = seq.encode("ascii", "ignore")

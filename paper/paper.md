@@ -34,10 +34,11 @@ with known ground truth, FPC (i) beats a general-purpose compressor (gzip) and
 low-order Markov models and remains competitive with the *best hand-tuned*
 fixed-order Markov model **without having to choose an order**; (ii) classifies
 short reads (down to 150 bp) at 100% where k-mer + kNN/logistic baselines fall to
-94–97%; (iii) recovers evolutionary distances **statistically on par with the
-standard tools FFP and Mash** across 25 independent controlled phylogenies (mean
-Pearson r = 0.93; paired Wilcoxon p = 0.29 vs FFP, p = 0.52 vs Mash) and
-**significantly better than a naive k-mer-cosine baseline** (r = 0.78, p < 10⁻⁶);
+94–97%; (iii) recovers evolutionary distances **statistically on par with the standard
+tools FFP and Mash and the prior-art cross-entropy distances NRC and NCCD** across
+25 independent controlled phylogenies (mean Pearson r = 0.93; paired Wilcoxon
+p ≥ 0.24 against all four) and **significantly better than a naive k-mer-cosine
+baseline** (r = 0.78, p < 10⁻⁶);
 and (iv) detects foreign inserts on par with a strong k-mer-novelty detector while
 adding calibrated, per-position surprise. On real genomes — seven coronaviruses, a
 28-genome five-family study, and 40 real proteins — it recovers the correct
@@ -45,8 +46,9 @@ closely-related groups unsupervised (SARS pair, Dengue serotypes, Ebola species,
 HIV/SIV; four of five families as clean clades), works unchanged on the 20-letter
 protein alphabet, and cleanly flags spliced phiX174 contamination (per-window
 ROC-AUC = 1.0). On the community-standard test — Robinson–Foulds tree distance on
-17 real mammalian mitogenomes — FPC **exactly ties Mash and FFP** (normalized RF
-0.43) and beats k-mer cosine (0.71). We report the losses just as plainly: on the hardest *deep*-
+17 real mammalian mitogenomes — FPC **ties Mash, FFP, and the prior-art NCCD**
+(normalized RF 0.43), sits just behind NRC (0.36), and beats k-mer cosine (0.71).
+We report the losses just as plainly: on the hardest *deep*-
 divergence real families the composition baseline **FFP is clearly better** (family
 purity 0.82 vs 0.93), and near-incompressible viral DNA limits compression for
 every method. Because the model *is* a geometry, it renders directly as an
@@ -144,9 +146,9 @@ FPC is prior art**, and pin down exactly what is not:
   used to build phylogenetic trees — is exactly Pratas, Silva & Pinho's
   **Normalized Relative Compression** (2018) and **NCCD** (Pratas & Pinho, 2014),
   and the KL-between-per-sequence-Markov-models trees of Bai (2013) and Chang &
-  Wang (2011). We claim **no novelty** for the distance definition and must
-  benchmark against these (future work); our only difference is the *substrate*
-  (a growing predictor rather than a finite-context Markov model).
+  Wang (2011). We claim **no novelty** for the distance definition, and we
+  benchmark directly against NRC and NCCD (§3.4, §3.9); our only difference is the
+  *substrate* (a growing predictor rather than a finite-context Markov model).
 
 **What is left, and is our contribution.** After the corrections above, the
 defensible novelty is narrow and specific: (a) growth driven by **next-symbol
@@ -328,12 +330,14 @@ single tree proves nothing, so we recover **25 independent random phylogenies**
 (varying divergence depth, source order, and composition) and score every
 method's correlation-with-truth per tree, with bootstrap 95% CIs and paired
 Wilcoxon tests (Fig. 9). The honest result: FPC (mean r = **0.926**, 95% CI
-0.900–0.948) is **statistically indistinguishable from the standard tools FFP
-(0.927; paired p = 0.29) and Mash (0.913; p = 0.52)**, and **significantly better
-than naive 5-mer cosine** (0.780; p < 10⁻⁶). We therefore claim *parity with
-strong standard tools on controlled phylogenies*, not superiority — the earlier
-single-tree "win" over k-mer cosine held up under scrutiny only against that
-*weak* baseline.
+0.900–0.948) is **statistically indistinguishable from every strong method** —
+FFP (0.927; paired p = 0.29), Mash (0.913; p = 0.52), and, crucially, the
+**prior-art cross-entropy distances NRC (0.921; p = 0.56) and NCCD (0.934;
+p = 0.24)** — and is **significantly better than naive 5-mer cosine** (0.780;
+p < 10⁻⁶). We therefore claim *parity with strong standard tools — including the
+prior-art distances FPC's own distance re-derives — on controlled phylogenies*,
+not superiority; the earlier single-tree "win" held up only against the *weak*
+k-mer-cosine baseline.
 
 ![Fig 4](../output/figures/fig4_phylogeny.png)
 
@@ -444,12 +448,12 @@ mitochondrial genomes** (16.3–17.2 kb, NCBI RefSeq) with a reference topology
 from established mammalian phylogeny (Boreoeutheria = Euarchontoglires +
 Laurasiatheria, sister to Afrotheria; rooted on a marsupial outgroup; resolved
 where accepted, polytomous where genuinely debated), FPC's NJ tree achieves
-**normalized RF = 0.429 — exactly tying the standard tools FFP and Mash (both
-0.429)** and clearly beating 5-mer cosine (0.714). This is the clearest
-defensible statement of FPC's phylogenetic standing: **on the community-standard
-dataset and metric, it is on par with the strong standard tools**, and the
-whole-model unification and interpretability come at no cost in tree accuracy
-here.
+**normalized RF = 0.429, tying NCCD, FFP, and Mash (all 0.429)** and clearly
+beating 5-mer cosine (0.714); the prior-art **NRC is modestly better here
+(0.357)**. So on the community-standard dataset and metric FPC matches the
+standard tools and the NCCD prior-art distance, sits a little behind NRC, and the
+whole-model unification and interpretability come at essentially no cost in tree
+accuracy. We do not claim to beat the specialised distances — we match them.
 
 ![Fig 11](../output/figures/fig11_rf_benchmark.png)
 
@@ -490,8 +494,9 @@ its own prediction failures, rather than tiling space uniformly.
   surprise = MDL, and — importantly — the cross-entropy/relative-compression
   phylogenetic distance (NRC, NCCD, KL-between-Markov-models) are all prior art.
   The contribution is the prediction-error-driven growth rule and the unification,
-  not the distance. A direct head-to-head benchmark against NRC and NCCD is a
-  necessary next step we have not yet run.
+  not the distance. We do benchmark directly against NRC and NCCD (§3.4, §3.9):
+  FPC matches them statistically on controlled trees and ties NCCD on real
+  mitogenomes, sitting modestly behind NRC there — parity, not superiority.
 * **Data-hungry (learned model).** FPC needs enough sequence to learn its
   generative model; on short, few-example classes (e.g. the ~150 aa proteins of
   §3.8) simple k-mer composition wins.

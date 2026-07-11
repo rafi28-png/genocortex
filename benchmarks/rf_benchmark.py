@@ -30,7 +30,7 @@ from scipy.spatial.distance import cosine
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fpc import DNA, tasks, io_fasta, fetch
-from benchmarks.baselines import kmer_vector
+from benchmarks.baselines import kmer_vector, nrc_nccd_distance_matrices
 from benchmarks.afbaselines import mash_distance_matrix, ffp_distance_matrix
 
 EMAIL = "rafiur2810@gmail.com"
@@ -130,9 +130,12 @@ def main():
     n = len(labels)
     rf_max = 2 * (n - 3)  # max RF for unrooted binary trees on n taxa
 
-    print("\n[computing distance matrices]")
+    print("\n[computing distance matrices] (NRC/NCCD are the prior-art cross-entropy distances)")
+    d_nrc, d_nccd = nrc_nccd_distance_matrices(seq_list, DNA, k=9)
     mats = {
         "FPC": tasks.distance_matrix(seq_list, DNA, order=9),
+        "NRC": d_nrc,
+        "NCCD": d_nccd,
         "FFP": ffp_distance_matrix(seq_list, DNA, k=6),
         "Mash": mash_distance_matrix(seq_list, k=16, sketch_size=800),
         "5-mer cos": kmer_cos_matrix(seq_list, k=5),
@@ -150,8 +153,9 @@ def main():
     # figure
     fig, ax = plt.subplots(figsize=(7, 4.4))
     names = list(results); vals = [results[k]["nrf"] for k in names]
-    colors = ["#2a78d6", "#1baf7a", "#eb6834", "#898781"]
-    ax.bar(names, vals, color=colors)
+    palette = {"FPC": "#2a78d6", "NRC": "#4a3aa7", "NCCD": "#9085e9",
+               "FFP": "#1baf7a", "Mash": "#eb6834", "5-mer cos": "#898781"}
+    ax.bar(names, vals, color=[palette.get(nm, "#888888") for nm in names])
     for i, v in enumerate(vals):
         ax.text(i, v + 0.01, f"{v:.2f}", ha="center")
     ax.set_ylabel("normalized Robinson-Foulds (lower = better)")
