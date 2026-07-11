@@ -1,0 +1,12 @@
+# Core engine only (offline, no API). This is all you need to run `import fpc`.
+numpy>=1.24
+scipy>=1.10
+
+# Everything else is optional — install with the extras in pyproject.toml:
+#   pip install -e .[viz]      # 3-D visualisations (plotly)
+#   pip install -e .[bench]    # benchmarks/figures (scikit-learn, matplotlib)
+#   pip install -e .[test]     # tests (pytest)
+#   pip install -e .[explain]  # optional Claude-API explanation layer (anthropic)
+#   pip install -e .[all]      # all of the above
+# The phylogeny Robinson-Foulds benchmark also needs: dendropy>=5.0
+# Building the PDF from paper.md also needs: markdown  (+ a Chromium/Chrome/Edge)

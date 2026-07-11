@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use GenoCortex or the Fractal Predictive Cortex, please cite it."
+title: "GenoCortex: the Fractal Predictive Cortex (FPC)"
+abstract: >-
+  A training-free, alignment-free, self-organising model for biological
+  sequences that unifies prediction, anomaly detection, classification, and
+  phylogenetics from a single surprise-minimisation objective, by growing
+  predictive prototypes in Chaos Game Representation space where the model is
+  most surprised. Pure NumPy/SciPy core; runs offline.
+type: software
+authors:
+  - given-names: "[GIVEN NAME]"
+    family-names: "[FAMILY NAME]"
+    email: rafiur2810@gmail.com
+    # affiliation: "[University / Institution]"
+version: "0.1.0"
+license: MIT
+repository-code: "https://github.com/[USERNAME]/genocortex"
+keywords:
+  - bioinformatics
+  - alignment-free sequence comparison
+  - chaos game representation
+  - predictive coding
+  - minimum description length
+  - self-organising maps
+  - phylogenetics
+  - anomaly detection
