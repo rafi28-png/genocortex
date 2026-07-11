@@ -15,7 +15,7 @@ authors:
     affiliation: "Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh"
 version: "0.1.0"
 license: MIT
-repository-code: "https://github.com/[USERNAME]/genocortex"
+repository-code: "https://github.com/rafi28-png/genocortex"
 keywords:
   - bioinformatics
   - alignment-free sequence comparison

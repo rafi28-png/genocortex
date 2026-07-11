@@ -539,7 +539,7 @@ re-runs.
 ## Data and code availability
 
 All code, tests, benchmarks, and figure-generating scripts are open-source under
-the MIT license at `https://github.com/[USERNAME]/genocortex` (to be archived on
+the MIT license at `https://github.com/rafi28-png/genocortex` (to be archived on
 Zenodo with a DOI at submission). The core engine depends only on NumPy and SciPy
 and runs fully offline; visualisation, benchmarking, and the optional
 explanation layer are opt-in extras. All synthetic data are generated

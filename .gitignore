@@ -12,10 +12,7 @@ output/
 data/
 paper/paper.html
 paper/*_p*.png
-
-# Keep: paper/paper.pdf is a build artifact but small & useful — comment the next
-# line out if you prefer to commit it.
-paper/paper.pdf
+# paper/paper.pdf is committed so the paper is readable on GitHub without building.
 
 # OS / editor
 .DS_Store
