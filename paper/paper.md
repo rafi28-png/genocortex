@@ -9,56 +9,58 @@ Bangladesh — *corresponding author:* `rafiur2810@gmail.com`
 predictive coding · minimum description length · self-organising maps ·
 phylogenetics · anomaly detection · genome classification
 
-*Working draft — a reproducible methods paper. Every number and figure is
-produced by the accompanying open-source code (`benchmarks/` and `examples/`; see
-§6) and is reported honestly, including the several cases where the method only
-matches, or is beaten by, its baselines.*
+*Working draft. All numbers and figures in this paper are produced by the
+accompanying open-source code (`benchmarks/` and `examples/`; see §6), including
+the cases where the method matches or is outperformed by its baselines.*
 
 ---
 
 ## Abstract
 
-Alignment-free sequence analysis usually means picking a task (compression,
-classification, distance estimation, anomaly detection) and then picking a tool
-built specifically for it, each with its own hyperparameters — most importantly
-the k-mer length *k*. We present the **Fractal Predictive Cortex (FPC)**, a
-single self-organising model that performs all four tasks at once, with **no
-training labels, no sequence alignment, no pretrained weights, and no fixed
-k-mer order**. FPC streams a sequence through a Chaos Game Representation, which
-turns "the recent context" into "a point in the plane", and grows a cloud of
-predictive **prototypes** wherever it is *surprised* — where its own next-symbol
-prediction fails. Its single objective, cumulative surprise, is exactly the
-sequence's description length (the Minimum Description Length principle), and the
-four capabilities are four read-outs of that one quantity. On controlled data
-with known ground truth, FPC (i) beats a general-purpose compressor (gzip) and
-low-order Markov models and remains competitive with the *best hand-tuned*
-fixed-order Markov model **without having to choose an order**; (ii) classifies
-short reads (down to 150 bp) at 100% where k-mer + kNN/logistic baselines fall to
-94–97%; (iii) recovers evolutionary distances **statistically on par with the standard
-tools FFP and Mash and the prior-art cross-entropy distances NRC and NCCD** across
-25 independent controlled phylogenies (mean Pearson r = 0.93; paired Wilcoxon
-p ≥ 0.24 against all four) and **significantly better than a naive k-mer-cosine
-baseline** (r = 0.78, p < 10⁻⁶);
-and (iv) detects foreign inserts on par with a strong k-mer-novelty detector while
-adding calibrated, per-position surprise. On real genomes — seven coronaviruses, a
-28-genome five-family study, and 40 real proteins — it recovers the correct
-closely-related groups unsupervised (SARS pair, Dengue serotypes, Ebola species,
-HIV/SIV; four of five families as clean clades), works unchanged on the 20-letter
-protein alphabet, and cleanly flags spliced phiX174 contamination (per-window
-ROC-AUC = 1.0). On the community-standard test — Robinson–Foulds tree distance on
-17 real mammalian mitogenomes — FPC **ties Mash, FFP, and the prior-art NCCD**
-(normalized RF 0.43), sits just behind NRC (0.36), and beats k-mer cosine (0.71).
-We report the losses just as plainly: on the hardest *deep*-
-divergence real families the composition baseline **FFP is clearly better** (family
-purity 0.82 vs 0.93), and near-incompressible viral DNA limits compression for
-every method. Because the model *is* a geometry, it renders directly as an
-interactive 3-D **cognitive map** of its own reasoning. A systematic literature
-review confirms that FPC's individual ingredients — CGR, self-organising maps,
-prediction/compression-based comparison, the least-surprised-model classifier, and
-the surprise = description-length identity — are all established prior art; the
-contribution is their **unification into a single surprise-driven *growing* memory
-in CGR space**, for which we find no near-identical precedent. The core engine is
-~1300 lines of NumPy/SciPy and runs fully offline.
+Alignment-free sequence analysis usually treats each task (compression,
+classification, distance estimation, anomaly detection) as a separate problem
+solved by a purpose-built tool, and most of these tools depend on a chosen k-mer
+length *k* whose best value differs from dataset to dataset. This paper describes
+the Fractal Predictive Cortex (FPC), a single self-organising model that performs
+all four tasks without training labels, sequence alignment, pretrained weights, or
+a fixed k-mer order. FPC streams a sequence through a Chaos Game Representation, so
+that the recent context becomes a location in the plane, and it incrementally adds
+predictive "prototypes" at the locations where its own next-symbol prediction is
+weakest. Its only objective is to minimise cumulative surprise, which equals the
+sequence's description length under the model; the four capabilities are different
+read-outs of that one quantity.
+
+On synthetic data with known ground truth, FPC compresses better than gzip and
+low-order Markov models and stays close to the best hand-tuned fixed-order Markov
+model without needing an order to be chosen. It classifies short reads down to
+150 bp at 100% accuracy, where k-mer + kNN/logistic baselines fall to 94–97%.
+Across 25 independent random phylogenies its distances correlate with the true
+patristic distances about as well as the standard tools FFP and Mash and the
+earlier compression-based distances NRC and NCCD (mean Pearson r = 0.93; paired
+Wilcoxon p ≥ 0.24 against all four), and significantly better than a k-mer cosine
+baseline (r = 0.78, p < 10⁻⁶). For foreign-insert detection it matches a strong
+k-mer-novelty detector and adds a calibrated per-position surprise signal.
+
+We also test on real data: seven coronaviruses, a 28-genome five-family set,
+40 proteins, and 17 mammalian mitochondrial genomes. FPC recovers the expected
+close relationships without supervision (the SARS pair, the dengue serotypes, the
+ebolaviruses, HIV/SIV; four of five viral families form clean clades), runs
+unchanged on the 20-letter protein alphabet, and flags spliced phiX174
+contamination (per-window ROC-AUC = 1.0). On the community-standard Robinson–Foulds
+mitogenome test it matches Mash, FFP and NCCD (normalised RF 0.43) and is slightly
+behind NRC (0.36), while beating k-mer cosine (0.71). Where the method loses we say
+so: on the most divergent viral families the composition method FFP is clearly more
+accurate (family purity 0.82 vs 0.93), and near-incompressible viral DNA limits
+compression for every method.
+
+Because the model is itself a geometry, it can be displayed directly as a
+three-dimensional map of its internal state. A literature review indicates that
+FPC's individual components (CGR, self-organising maps, prediction- and
+compression-based comparison, the least-surprised-model classifier, and the
+surprise/description-length identity) are all established; the contribution is
+their combination into one model whose memory grows where prediction fails, for
+which we found no close precedent. The core engine is about 1,300 lines of NumPy
+and SciPy and runs offline.
 
 ---
 
@@ -73,10 +75,9 @@ another builds trees, another scans for anomalies — and almost all of them hin
 on a hand-chosen word length *k* whose best value is unknown in advance and
 differs from dataset to dataset.
 
-We ask a different question: *is there a single model whose one internal signal
-naturally answers all of these questions?* Our answer draws on two old, elegant,
-and (individually) well-understood ideas — coupled, as we argue in §1.1, in a way
-that has no near-identical precedent:
+We instead ask whether a single model can address all of these tasks from one
+internal signal. FPC combines two established ideas, coupled in a way for which
+we could not find a precedent (§1.1):
 
 1. **Chaos Game Representation (CGR)** [Jeffrey 1990] maps a sequence to a
    trajectory of points in the unit square such that *positions sharing a long
@@ -471,9 +472,9 @@ classifier (better than k-mer + ML at short lengths), a phylogenetic distance
 (statistically on par with FFP and Mash on controlled trees; behind FFP at deep
 divergence), and an anomaly detector with a calibrated per-position surprise
 signal — and it draws a literal 3-D map of what it has learned. For a practitioner
-staring at an unfamiliar sequence with no labels, no reference, and no idea what
-*k* to pick, that single-model combination — not any one number — is the useful
-part.
+working with an unfamiliar sequence with no labels, no reference, and no obvious
+choice of *k*, this single-model combination is the practical benefit, rather than
+any single accuracy figure.
 
 The "grow where surprised" rule connects two literatures — CGR geometry and
 predictive coding — that are rarely used together, and gives the model a
@@ -551,22 +552,20 @@ paper is reproduced by the commands in §6.
 ## Author contributions
 
 M.R.R. conceived the method, implemented the software, designed and ran the
-experiments, and wrote the manuscript. *(If a faculty mentor is added, note their
-supervision and manuscript revision here.)*
+experiments, and wrote the manuscript.
 
 ## Competing interests
 
-The authors declare no competing interests.
+The author declares no competing interests.
 
 ## Funding
 
-[No specific funding to declare / add grant numbers if applicable.]
+No specific funding was received for this work.
 
 ## Acknowledgements
 
-The literature review and parts of the analysis were assisted by an AI research
-assistant; all methods, code, results, and claims were verified by the author(s),
-and the honest reporting of the method's limitations reflects that verification.
+The author thanks the National Center for Biotechnology Information (NCBI) for
+public access to the RefSeq sequences used in this study.
 
 ---
 

@@ -1,207 +1,149 @@
-<h1 align="center">🧠 GenoCortex — the Fractal Predictive Cortex</h1>
+# GenoCortex — the Fractal Predictive Cortex (FPC)
 
-<p align="center">
-<b>A training-free, alignment-free, self-organising "brain" for biological sequences.</b><br>
-One model — no labels, no alignment, no pretrained weights, no fixed k-mer order —
-that <b>predicts</b>, <b>detects mutations</b>, <b>classifies</b>, and <b>discovers phylogeny</b>,
-and draws a live <b>3-D map of its own reasoning</b>.<br>
-Core engine: pure NumPy/SciPy. <b>Runs 100% offline. No API. No internet.</b>
-</p>
+A training-free, alignment-free, self-organising model for biological sequences.
+A single model performs next-symbol prediction, mutation/anomaly detection,
+classification, and phylogenetic distance estimation, without training labels,
+sequence alignment, pretrained weights, or a fixed k-mer order. The core engine
+depends only on NumPy and SciPy and runs offline.
 
----
+## Method in brief
 
-## The one idea
+The model reads a sequence left to right through a Chaos Game Representation
+(CGR), which maps the recent context to a point in the unit square. It maintains
+a growing set of predictive "prototypes" in that space and adds a new prototype
+at the locations where its own next-symbol prediction is weakest. Its single
+objective is to minimise cumulative surprise, `-log2 P(next | context)`, which
+equals the sequence's description length under the model. The four capabilities
+are read-outs of that one surprise signal:
 
-Everything here comes from a single principle: **a good model of a sequence is one
-that keeps predicting what comes next, and pays attention to its own *surprise*
-when it is wrong.**
+- prediction: the next-symbol distribution `P(next | context)`;
+- detection: mutations or foreign DNA appear as local increases in surprise
+  (reported with robust z-scores and p-values);
+- classification: assign a query to the model that is least surprised by it;
+- distance/phylogeny: a symmetric cross-entropy between two sequences' learned
+  models.
 
-1. Stream the sequence through a **Chaos Game Representation** — a fractal map
-   where *"the recent context" becomes "a point in the plane."*
-2. Grow a cloud of little predictive memory cells (**prototypes**) *wherever the
-   model is surprised.* It literally decides where to spend memory.
-3. Minimise cumulative surprise. That single number **is** the sequence's
-   description length (the MDL principle), and four abilities fall out of it:
+Because the model lives in a 2-D geometry, its internal state can be rendered as
+a 3-D "surprise landscape".
 
-| Ability | How surprise gives it |
-|---|---|
-| 🔮 **Predict** | the next-symbol distribution `P(next \| context)` |
-| 🩺 **Detect** | mutations / foreign DNA = local *spikes* of surprise (with p-values) |
-| 🏷️ **Classify** | the label whose brain is *least surprised* (a generative MDL classifier) |
-| 🌳 **Discover** | phylogeny from the *excess* surprise between sequences |
-
-Because the model *is* a geometry, you can **see** it: a 3-D "surprise landscape."
-
----
-
-## Install
+## Installation
 
 ```bash
-git clone <your-repo>  &&  cd genocortex
-pip install -e .            # core: numpy + scipy only
-pip install -e .[all]       # + plotly (3-D), scikit-learn/matplotlib (benchmarks), pytest
+git clone https://github.com/rafi28-png/genocortex.git && cd genocortex
+pip install -e .            # core: numpy + scipy
+pip install -e .[all]       # + plotly, scikit-learn, matplotlib, pytest
 ```
 
-Requires Python ≥ 3.10.
+Python >= 3.10. The phylogeny Robinson-Foulds benchmark also uses `dendropy`.
 
----
-
-## 60-second quickstart
+## Quick start
 
 ```python
 from fpc import FractalPredictiveCortex, DNA, tasks, datasets
 
-# --- learn a genome (no labels, no alignment, no training set) ---
 genome = datasets.markov_sequence(20000, DNA, order=2, seed=1)
-brain  = FractalPredictiveCortex(DNA, order=8)
-track  = brain.fit(DNA.encode(genome))
-print(track)          # SurpriseTrack(mean_bits=..., perplexity=...)
+model  = FractalPredictiveCortex(DNA, order=8)
+track  = model.fit(DNA.encode(genome))
+print(track)                                   # mean bits/symbol, perplexity
 
-# 🔮 PREDICT the next base after a context
-p = brain.predict_next(DNA.encode("ACGTACG"))
+# predict the next base
+p = model.predict_next(DNA.encode("ACGTACG"))
 print(dict(zip("ACGT", p.round(3))))
 
-# 🩺 DETECT a foreign insert
+# detect a foreign insert against a reference
 host  = datasets.markov_sequence(6000, DNA, seed=2)
 donor = datasets.markov_sequence(400,  DNA, seed=9)
-chim, span = datasets.insert_foreign(host, donor, position=3000)
-res = tasks.detect_against_reference(host, chim, DNA)
-print("true insert:", span, "-> detected:", [(a.start, a.end) for a in res.anomalies])
+chimera, span = datasets.insert_foreign(host, donor, position=3000)
+res = tasks.detect_against_reference(host, chimera, DNA)
+print(span, [(a.start, a.end) for a in res.anomalies])
 
-# 🏷️ CLASSIFY (which brain is least surprised)
+# classify by least-surprised model
 ds  = datasets.make_species(n_species=4, per_species=6, length=2500)
 clf = tasks.FPCClassifier(DNA, order=6).fit(ds.sequences[::2], ds.labels[::2])
-print("accuracy:", tasks.classification_accuracy(
-    clf.predict(ds.sequences[1::2]), ds.labels[1::2]))
+print(tasks.classification_accuracy(clf.predict(ds.sequences[1::2]), ds.labels[1::2]))
 
-# 🌳 DISCOVER an (unsupervised, alignment-free) phylogeny
+# phylogenetic distances -> MDS coordinates
 phy   = datasets.phylogeny(depth=3, seed=3)
 names = list(phy.leaves)
 D     = tasks.distance_matrix([phy.leaves[n] for n in names], DNA)
-coords = tasks.mds_embedding(D, dims=3)   # -> feed to the 3-D viewer
+coords = tasks.mds_embedding(D, dims=3)
 ```
 
-### See the brain think (interactive 3-D, offline HTML)
-
-```python
-from viz import cognitive_map_html
-cognitive_map_html(brain, DNA.encode(genome), "cognitive_map.html")
-# open cognitive_map.html in any browser — works with no internet
-```
-
-Or generate all three flagship visuals at once:
+Interactive 3-D visualisations (standalone offline HTML):
 
 ```bash
-python examples/make_visuals.py     # -> output/*.html  (and .png snapshots)
+python examples/make_visuals.py     # writes output/*.html and .png snapshots
 ```
 
-<p align="center"><i>the surprise landscape · a foreign-insert anomaly · an unsupervised phylogeny constellation</i></p>
+## Real data
 
----
-
-## Works on your real data too
-
-```python
-from fpc import io_fasta, DNA, tasks
-recs = io_fasta.read_fasta("my_genome.fasta")        # multi-record, gzip-aware
-res  = tasks.detect_anomalies(recs[0].seq, DNA, order=9)
-```
-
-It is **alphabet-agnostic** — use `PROTEIN` (or define your own `Alphabet`) and the
-exact same engine works on protein sequences. An *optional* `fpc/fetch.py` helper
-(the only part that touches the internet) can pull real records from NCBI.
-
-**Real-genome demo** — downloads 7 real coronaviruses and runs all four abilities:
+The engine is alphabet-agnostic; use `PROTEIN` (or a custom `Alphabet`) with no
+other change. `fpc/fetch.py` (the only component that uses the network) retrieves
+records from NCBI and caches them for offline re-runs.
 
 ```bash
-python examples/real_genomes.py     # 7 coronaviruses: predict/detect/classify/phylogeny
-python examples/big_study.py         # 28 genomes across 5 viral families
+python examples/real_genomes.py     # 7 coronaviruses
+python examples/big_study.py        # 28 genomes, 5 viral families
+python examples/protein_study.py    # 40 proteins, 4 families
+python benchmarks/rf_benchmark.py   # 17 mammalian mitogenomes, Robinson-Foulds
 ```
 
-On real data it recovers the correct close relatives unsupervised (SARS-CoV-2↔SARS-CoV-1,
-Dengue serotypes, Ebola species, HIV/SIV; **4 of 5 families as clean clades**) and flags spliced
-**phiX174 contamination** at ROC-AUC 1.0 — while honestly showing where composition-only methods
-are competitive-to-better (deep divergences; near-incompressible viral DNA). See `paper/paper.md`
-§3.6–3.7.
+## Results
 
----
+All numbers are reproducible from the scripts in `benchmarks/` and `examples/`
+(fixed seeds; real data cached after first download). Losses are reported
+alongside wins.
 
-## Optional: explain findings in plain English (the *only* online part)
-
-The offline core produces numbers; an **optional, clearly-separated** layer
-(`fpc/explain.py`) can turn them into a plain-language interpretation for a paper
-or a collaborator, using the Claude API. Nothing in the core imports it.
-
-```bash
-pip install anthropic
-setx ANTHROPIC_API_KEY "sk-ant-..."      # reopen the shell after this
-python examples/explain_demo.py           # runs offline; calls Claude only if the key is set
-```
-
-```python
-from fpc import DNA, tasks, datasets
-from fpc.explain import explain_detection
-res = tasks.detect_against_reference(host, chimera, DNA)
-print(explain_detection(res, sequence_name="chimera"))   # -> readable write-up
-```
-
-Defaults to **Claude Fable 5** with an automatic fallback to Opus. The core still
-runs 100% offline without any of this.
-
-## Honest results (reproduce with `python benchmarks/bench.py`)
-
-Synthetic data, known ground truth. We report losses as plainly as wins.
-
-| Task | FPC | Best baseline | Verdict |
+| Task | FPC | Baselines | Summary |
 |---|---|---|---|
-| **Phylogeny** (corr. w/ true distance) | **r = 0.94** | k-mer cosine r = 0.76 | ✅ clear win |
-| **Short-read ID** (150 bp, 6 species) | **100%** | k-mer+1-NN 97% / logistic 94% | ✅ win |
-| **Adaptivity** (bits/symbol) | beats gzip & Markov-2, no *k* to tune | best tuned Markov-*k* | ⚖️ competitive, no tuning |
-| **Prediction** (next-base acc.) | 0.83→0.89 | Markov-6 0.86→0.90 | ⚖️ competitive |
-| **Detection** (insert ROC-AUC) | ≈ 1.0 | 8-mer novelty ≈ 1.0 | ⚖️ parity (+ calibrated bits) |
-| **Compression on Markov data** | 0.38 | Markov-2 **0.30** | ❌ oracle wins, as it should |
+| Phylogeny, 25 synthetic trees (Pearson r) | 0.93 | FFP 0.93, NCCD 0.93, NRC 0.92, Mash 0.91, k-mer cosine 0.78 | statistically tied with FFP/Mash/NRC/NCCD (Wilcoxon p >= 0.24); beats k-mer cosine (p < 1e-6) |
+| Phylogeny, 17 real mitogenomes (norm. Robinson-Foulds, lower better) | 0.43 | NRC 0.36, NCCD/FFP/Mash 0.43, k-mer cosine 0.71 | ties the standard tools; slightly behind NRC |
+| Short-read classification, 150 bp | 100% | k-mer+1NN 97%, k-mer+logistic 94% | robust as reads shorten |
+| Compression (bits/symbol) | beats gzip; near best Markov | best hand-tuned Markov-k | competitive without choosing k |
+| Foreign-insert detection (ROC-AUC) | ~1.0 | 8-mer novelty ~1.0 | parity; adds calibrated per-position surprise |
+| Real viral families, deep divergence (clustering purity) | 0.82 | FFP 0.93 | FFP is more accurate here |
 
-**The point is not to win every row** — specialised tools beat FPC on their home
-turf. The point is that *one* label-free, alignment-free, order-free model does
-**all** of these at once, and shows you its reasoning in 3-D.
+FPC matches standard alignment-free tools on several tasks and is beaten on
+others (compression on Markov data, deep-divergence family clustering). The
+contribution is that one label-free, alignment-free, order-free model provides all
+of these read-outs together, with an interpretable per-position surprise signal
+and a 3-D view of its state. See `paper/paper.md` for the full study, honest
+positioning, and prior work.
 
----
-
-## What's inside
+## Repository layout
 
 ```
-fpc/                  the core brain (pure NumPy/SciPy, no API)
-  alphabet.py         alphabet-agnostic symbol handling (DNA/RNA/PROTEIN/custom)
-  cgr.py              the fractal mind-space (Chaos Game Representation)
-  cortex.py           the Fractal Predictive Cortex — the self-organising model
-  surprise.py         surprise trace + robust, p-valued anomaly scan
-  tasks.py            the four abilities (predict / detect / classify / discover)
-  datasets.py         reproducible synthetic genomes with ground truth
-  io_fasta.py         dependency-free FASTA reader/writer (gzip-aware)
-viz/viz3d.py          interactive 3-D cognitive map -> standalone offline HTML
-benchmarks/           baselines (Markov, gzip, k-mer) + the 5 experiments + figures
-tests/                15 correctness tests (incl. the CGR suffix-locality property)
-examples/             runnable demos
-paper/paper.md        the methods-paper draft (honest results + limitations)
+fpc/            core engine (NumPy/SciPy only)
+  alphabet.py   symbol handling (DNA/RNA/PROTEIN/custom)
+  cgr.py        Chaos Game Representation
+  cortex.py     the Fractal Predictive Cortex
+  surprise.py   surprise trace + anomaly scan
+  tasks.py      predict / detect / classify / distance
+  datasets.py   reproducible synthetic data with ground truth
+  io_fasta.py   FASTA reader/writer (gzip-aware)
+  fetch.py      optional NCBI download (network)
+  explain.py    optional plain-language report layer (external LLM API; off by default)
+viz/            3-D visualisation -> offline HTML
+benchmarks/     baselines (Markov, gzip, k-mer, Mash, FFP, NRC, NCCD), experiments, stats
+examples/       runnable demos and real-data studies
+tests/          correctness tests
+paper/          manuscript (paper.md, build_pdf.py, cover_letter.md)
 ```
 
----
+Run everything: `python run_all.py` (add `--real` for the real-data studies).
 
-## Limitations (read these)
+## Limitations
 
-- Not a state-of-the-art compressor or predictor; matched Markov / PPM / CTW beat
-  it on stationary data.
-- Effective context length is bounded by `order` and by CGR's decaying memory;
-  very long-range dependencies are not captured.
-- Self-anomaly detection can *learn* a long insert away — use reference-based
-  detection there. Point-mutation precision drops in high-entropy regions.
-- Benchmarks are synthetic-with-ground-truth (the right first step); large
-  real-genome evaluation is future work.
-
-See `paper/paper.md` §5 for the full discussion.
-
----
+- Not state-of-the-art on any single task; matched Markov models and PPM/CTW beat
+  it on stationary compression, and FFP beats it on deep-divergence phylogeny.
+- Effective context is bounded by the `order` parameter and by CGR's decaying
+  memory, so very long-range dependencies are not captured.
+- It is a learned model and needs enough sequence to train; short, few-example
+  classes (e.g. ~150-aa protein families) favour simple k-mer methods.
+- Self-anomaly detection can learn a long insert away; reference-based or relative
+  detection is appropriate there.
+- The cross-entropy distance is not novel (see NRC/NCCD in `paper/paper.md`).
 
 ## License
 
-MIT. Built as an open, reproducible research project.
+MIT (see `LICENSE`).
