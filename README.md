@@ -121,8 +121,7 @@ fpc/            core engine (NumPy/SciPy only)
   tasks.py      predict / detect / classify / distance
   datasets.py   reproducible synthetic data with ground truth
   io_fasta.py   FASTA reader/writer (gzip-aware)
-  fetch.py      optional NCBI download (network)
-  explain.py    optional plain-language report layer (external LLM API; off by default)
+  fetch.py      optional NCBI download for real data (public, no key)
 viz/            3-D visualisation -> offline HTML
 benchmarks/     baselines (Markov, gzip, k-mer, Mash, FFP, NRC, NCCD), experiments, stats
 examples/       runnable demos and real-data studies

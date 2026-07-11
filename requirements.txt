@@ -6,7 +6,6 @@ scipy>=1.10
 #   pip install -e .[viz]      # 3-D visualisations (plotly)
 #   pip install -e .[bench]    # benchmarks/figures (scikit-learn, matplotlib)
 #   pip install -e .[test]     # tests (pytest)
-#   pip install -e .[explain]  # optional Claude-API explanation layer (anthropic)
 #   pip install -e .[all]      # all of the above
-# The phylogeny Robinson-Foulds benchmark also needs: dendropy>=5.0
+# The [bench] extra includes dendropy>=5.0 for the Robinson-Foulds benchmark.
 # Building the PDF from paper.md also needs: markdown  (+ a Chromium/Chrome/Edge)
