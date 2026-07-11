@@ -1,5 +1,7 @@
 # GenoCortex — the Fractal Predictive Cortex (FPC)
 
+**Project website (interactive 3-D):** https://rafi28-png.github.io/genocortex/
+
 A training-free, alignment-free, self-organising model for biological sequences.
 A single model performs next-symbol prediction, mutation/anomaly detection,
 classification, and phylogenetic distance estimation, without training labels,
