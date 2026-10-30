@@ -104,9 +104,9 @@ def cognitive_map_html(cortex, ids, out_path: str, grid: int = 96,
     smooth:   Gaussian smoothing sigma (in cells) for the terrain.
     """
     ids = np.asarray(ids)
-    P = cortex.embedding.embed(ids)
+    C = cortex.embedding.context_points(ids)
     track = cortex.score(ids)
-    z, mask = _surprise_grid(P, track.bits, grid)
+    z, mask = _surprise_grid(C, track.bits, grid)
     z = _nan_smooth(z, mask, smooth)
 
     xs = (np.arange(grid) + 0.5) / grid

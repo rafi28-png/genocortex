@@ -417,7 +417,7 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
     }
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
-    if (a <= 0 || n_neighbors <= 0 || cap < m ||
+    if (a <= 0 || n_neighbors <= 0 || max_prototypes < 1 || cap < m ||
         C_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) ||
         bits_buf.len < T * (Py_ssize_t)sizeof(double) ||
         global_buf.len < (Py_ssize_t)a * (Py_ssize_t)sizeof(double)) {
@@ -473,6 +473,8 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
     Py_BEGIN_ALLOW_THREADS
     const double inv_2sigma2 = 1.0 / (2.0 * sigma * sigma);
     const double decay_factor = (prune_interval > 0) ? pow(usage_decay, (double)prune_interval) : 1.0;
+    const int headroom = (prune_interval > 0) ? ((max_prototypes / 4 > 16) ? (max_prototypes / 4) : 16) : 0;
+    const int growth_cap = max_prototypes + headroom;
 
     for (Py_ssize_t t = 0; t < T; ++t) {
         int64_t s = ids[t];
@@ -560,7 +562,7 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
                     high_surp = (b > surp_mean + 2.0 * std_v);
                 }
                 int shocked = surprise_growth && high_surp && (nearest_dist > 0.5 * dist_threshold);
-                int can_grow = (m < max_prototypes);
+                int can_grow = (m < growth_cap);
 
                 if (empty || ((far || shocked) && can_grow)) {
                     if (m < cap) {
@@ -603,6 +605,9 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
                 }
             }
         }
+    }
+    if (update && m > max_prototypes) {
+        m = prune_prototypes(X, N, usage, m, max_prototypes, a);
     }
     Py_END_ALLOW_THREADS
 

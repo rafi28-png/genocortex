@@ -133,6 +133,8 @@ class FractalPredictiveCortex:
         self.background_weight = float(background_weight)
         self.learn_rate = float(learn_rate)
         self.surprise_growth = bool(surprise_growth)
+        if int(max_prototypes) < 1:
+            raise ValueError(f"max_prototypes must be >= 1, got {max_prototypes}")
         self.max_prototypes = int(max_prototypes)
         self.prune_interval = int(prune_interval)
         self.usage_decay = float(usage_decay)
@@ -366,13 +368,18 @@ class FractalPredictiveCortex:
         bits[canonical] = -np.log2(probs)
         return SurpriseTrack(bits)
 
+    def _growth_cap(self) -> int:
+        if self.prune_interval > 0:
+            return self.max_prototypes + max(16, self.max_prototypes // 4)
+        return self.max_prototypes
+
     def _stream(self, ids: np.ndarray, update: bool) -> SurpriseTrack:
         ids_c = np.ascontiguousarray(ids, dtype=np.int64)
         if len(ids_c) == 0:
             return SurpriseTrack(np.empty(0, dtype=np.float64))
 
         if self.use_fast and HAS_FAST_KERNEL:
-            need_cap = max(64, self.max_prototypes, self._m + 1)
+            need_cap = max(64, self._growth_cap() + 1, self._m + 1)
             self._ensure_capacity(need_cap)
             C = np.ascontiguousarray(
                 self.embedding.context_points(ids_c, use_fast=True), dtype=np.float64
@@ -437,6 +444,9 @@ class FractalPredictiveCortex:
                     self.usage[: self._m] *= (self.usage_decay ** self.prune_interval)
                     self._prune()
 
+        if update and self._m > self.max_prototypes:
+            self._prune()
+
         return SurpriseTrack(bits)
 
     def _learn(self, c: np.ndarray, symbol: int, nearest: int,
@@ -446,7 +456,7 @@ class FractalPredictiveCortex:
         far = nearest_dist > self.dist_threshold
         shocked = self.surprise_growth and self._surprise_is_high(bits) \
             and nearest_dist > 0.5 * self.dist_threshold
-        can_grow = self._m < self.max_prototypes
+        can_grow = self._m < self._growth_cap()
 
         if empty or ((far or shocked) and can_grow):
             self._add_prototype(c, symbol)

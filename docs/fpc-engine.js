@@ -285,8 +285,8 @@ export class ChaosGameEmbedding {
 // Adaptive Power-of-2 Spatial Grid Index (identical to fpc/_fast.c)
 // ---------------------------------------------------------------------------
 function chooseGridN(targetPrototypes) {
-  if (targetPrototypes <= 4096) return 32;
-  if (targetPrototypes <= 32768) return 128;
+  if (targetPrototypes <= 8192) return 32;
+  if (targetPrototypes <= 131072) return 128;
   return 256;
 }
 
@@ -647,11 +647,14 @@ export class FractalPredictiveCortex {
       options.surpriseGrowth !== undefined ? Boolean(options.surpriseGrowth) : true;
     this.maxPrototypes =
       options.maxPrototypes !== undefined ? Math.floor(options.maxPrototypes) : 6000;
+    if (this.maxPrototypes < 1) {
+      throw new RangeError(`maxPrototypes must be >= 1, got ${this.maxPrototypes}`);
+    }
     this.pruneInterval =
       options.pruneInterval !== undefined ? Math.floor(options.pruneInterval) : 4000;
     this.usageDecay = options.usageDecay !== undefined ? Number(options.usageDecay) : 0.9997;
 
-    this._cap = Math.max(64, Math.min(this.maxPrototypes + 1, 2048));
+    this._cap = Math.max(64, Math.min(this._growthCap() + 1, 2048));
     this._m = 0;
     this.X = new Float64Array(this._cap * 2);
     this.N = new Float64Array(this._cap * this.a);
@@ -668,6 +671,13 @@ export class FractalPredictiveCortex {
 
   get nPrototypes() {
     return this._m;
+  }
+
+  _growthCap() {
+    if (this.pruneInterval > 0) {
+      return this.maxPrototypes + Math.max(16, Math.floor(this.maxPrototypes / 4));
+    }
+    return this.maxPrototypes;
   }
 
   _ensureCapacity(need) {
@@ -834,7 +844,8 @@ export class FractalPredictiveCortex {
     bits.fill(NaN);
     if (T === 0) return new SurpriseTrack(bits);
 
-    this._ensureCapacity(Math.max(64, this.maxPrototypes + 1, this._m + 1));
+    const growthCap = this._growthCap();
+    this._ensureCapacity(Math.max(64, growthCap + 1, this._m + 1));
     const C = this.embedding.contextPoints(ids);
     const a = this.a;
     const idxBuf = new Int32Array(Math.max(1, this.nNeighbors));
@@ -869,7 +880,7 @@ export class FractalPredictiveCortex {
             highSurp = b > this._surpMean + 2.0 * Math.sqrt(variance);
           }
           const shocked = highSurp && nearestDist > 0.5 * this.distThreshold;
-          const canGrow = this._m < this.maxPrototypes;
+          const canGrow = this._m < growthCap;
 
           if (empty || ((far || shocked) && canGrow)) {
             this._ensureCapacity(this._m + 1);
@@ -908,6 +919,9 @@ export class FractalPredictiveCortex {
       if (onProgress && (t & 32767) === 32767) {
         onProgress(t + 1, T);
       }
+    }
+    if (update && this._m > this.maxPrototypes) {
+      this._prune();
     }
     return new SurpriseTrack(bits);
   }
@@ -1128,8 +1142,8 @@ export function parseSequences(text, { minPhred = 0, wildcard = "N", phredOffset
 // Genomic Island Scanner + BED / BedGraph / TSV Exporters
 // ---------------------------------------------------------------------------
 export function defaultMaxPrototypes(alphabet, order) {
-  const approx = Math.pow(alphabet.size, Math.min(Math.floor(order), 9));
-  return Math.max(8192, Math.min(65536, Math.floor(1.5 * approx)));
+  const approx = Math.pow(alphabet.size, Math.min(Math.floor(order), 10));
+  return Math.max(8192, Math.min(262144, Math.floor(1.25 * approx)));
 }
 
 function windowShannonH0(ids, alphabet, starts, ends) {
@@ -2050,7 +2064,7 @@ export function minimumSpanningTree(D) {
 // 3-D Cognitive Map Terrain Builder (for live Plotly 3-D surface)
 // ---------------------------------------------------------------------------
 export function buildCognitiveTerrain(cortex, ids, grid = 72) {
-  const P = cortex.embedding.embed(ids);
+  const C = cortex.embedding.contextPoints(ids);
   const track = cortex.score(ids);
   const bits = track.bits;
   const acc = new Float64Array(grid * grid);
@@ -2059,8 +2073,8 @@ export function buildCognitiveTerrain(cortex, ids, grid = 72) {
   for (let t = 0; t < bits.length; t++) {
     const b = bits[t];
     if (Number.isNaN(b)) continue;
-    const gx = Math.min(grid - 1, Math.max(0, Math.floor(P[2 * t] * grid)));
-    const gy = Math.min(grid - 1, Math.max(0, Math.floor(P[2 * t + 1] * grid)));
+    const gx = Math.min(grid - 1, Math.max(0, Math.floor(C[2 * t] * grid)));
+    const gy = Math.min(grid - 1, Math.max(0, Math.floor(C[2 * t + 1] * grid)));
     const idx = gy * grid + gx;
     acc[idx] += b;
     cnt[idx] += 1;

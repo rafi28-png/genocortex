@@ -539,3 +539,107 @@ def test_web_worker_all_tabs_end_to_end():
     assert "NA" in results[3]["result"]["downloads"]["tsv"]
     assert len(results[4]["result"]["continuation"]) == 24
 
+
+def test_prototype_pruning_evicts_stale_regime_and_preserves_cap():
+    with pytest.raises(ValueError):
+        FractalPredictiveCortex(DNA, max_prototypes=0)
+
+    # Regime A visits all 64 distinct 6-mer {A, T} contexts (> max_prototypes=16),
+    # saturating memory completely before Regime B (periodic GC motif) begins.
+    rng = np.random.default_rng(42)
+    regime_a = "".join(rng.choice(["A", "T"], size=2400))
+    regime_b = "GGCCGCGG" * 400
+    stream_ids = DNA.encode(regime_a + regime_b)
+    probe_b = DNA.encode("GGCCGCGG" * 80)
+
+    c_fast = FractalPredictiveCortex(
+        DNA, order=6, max_prototypes=16, prune_interval=200, usage_decay=0.985, use_fast=True
+    )
+    c_slow = FractalPredictiveCortex(
+        DNA, order=6, max_prototypes=16, prune_interval=200, usage_decay=0.985, use_fast=False
+    )
+    # Verify Regime A genuinely saturates max_prototypes=16 first
+    c_fast.fit(DNA.encode(regime_a))
+    c_slow.fit(DNA.encode(regime_a))
+    assert c_fast.n_prototypes == 16
+    assert c_slow.n_prototypes == 16
+
+    # Reset and stream A -> B continuously
+    c_fast = FractalPredictiveCortex(
+        DNA, order=6, max_prototypes=16, prune_interval=200, usage_decay=0.985, use_fast=True
+    )
+    c_slow = FractalPredictiveCortex(
+        DNA, order=6, max_prototypes=16, prune_interval=200, usage_decay=0.985, use_fast=False
+    )
+    tr_fast = c_fast.fit(stream_ids)
+    tr_slow = c_slow.fit(stream_ids)
+
+    assert c_fast.n_prototypes == 16
+    assert c_slow.n_prototypes == 16
+    assert np.nanmax(np.abs(tr_fast.bits - tr_slow.bits)) < 1e-12
+
+    # Active pruning must have evicted stale AT prototypes in favour of GC prototypes
+    assert c_fast.score(probe_b).mean_bits < 0.35
+
+
+def test_cognitive_terrain_context_alignment_and_protein_scan(tmp_path):
+    from viz.viz3d import _surprise_grid, cognitive_map_html
+
+    # Train on pure 'G' (CGR corner (1, 1)), then score terminal shock "GGGGGGGGA":
+    # The ~9-bit 'A' shock occurs AT context 'GGGGGGGG' near (1, 1) (top-right),
+    # NOT shifted post-step to (0.5, 0.5) (centre).
+    c_py = FractalPredictiveCortex(DNA, order=6, max_prototypes=64)
+    c_py.fit(DNA.encode("G" * 400))
+    q_ids = DNA.encode("GGGGGGGGA")
+    out_html = tmp_path / "cog_map.html"
+    cognitive_map_html(c_py, q_ids, str(out_html), grid=16)
+    assert out_html.exists() and "surprise" in out_html.read_text(encoding="utf-8")
+    z_py, mask_py = _surprise_grid(c_py.embedding.context_points(q_ids), c_py.score(q_ids).bits, 16)
+    assert not mask_py[7, 7]
+    assert z_py[15, 15] > 1.5 and z_py[15, 15] > z_py[8, 8]
+
+    node_bin = _find_node()
+    if not node_bin:
+        pytest.skip("Node.js runtime not installed")
+
+    js_check = """
+    import * as fpc from "./docs/fpc-engine.js";
+    const cx = new fpc.FractalPredictiveCortex(fpc.DNA, { order: 6, maxPrototypes: 64 });
+    cx.fit(fpc.DNA.encode("G".repeat(400)));
+    const queryIds = fpc.DNA.encode("GGGGGGGGA");
+    const terrain = fpc.buildCognitiveTerrain(cx, queryIds, 16);
+    const topRight = terrain.zRows[15][15];
+    const mid = terrain.zRows[8][8];
+    const aCorner = terrain.zRows[0][0];
+
+    // Also verify defaultMaxPrototypes parity & short-window protein separation
+    const dmp8 = fpc.defaultMaxPrototypes(fpc.DNA, 8);
+    const hostAA = "ACDEFGHIKL".repeat(45);
+    const qryAA = "ACDEFGHIKL".repeat(6) + "WWWWYYYYWW".repeat(4) +
+                  "ACDEFGHIKL".repeat(22) + "WWWWYYYYWW".repeat(4) +
+                  "ACDEFGHIKL".repeat(6);
+    const scanAA = fpc.scanAgainstReference(
+      [{ id: "ref_prot", seq: hostAA }],
+      [{ id: "qry_prot", seq: qryAA }],
+      { alphabet: fpc.PROTEIN, order: 3, window: 30, step: 7, mergeGap: 60, zThreshold: 2.5 }
+    );
+    process.stdout.write(JSON.stringify({
+      topRight, mid, aCorner, dmp8, nProtIslands: scanAA.islands.length
+    }));
+    """
+    proc = subprocess.run(
+        [node_bin, "--input-type=module", "-e", js_check],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    out = json.loads(proc.stdout)
+    assert out["dmp8"] == islands.default_max_prototypes(DNA, 8)
+    assert out["aCorner"] is None
+    assert out["topRight"] is not None and out["topRight"] > 1.2
+    assert out["mid"] is not None and out["topRight"] > out["mid"]
+    assert out["nProtIslands"] == 2
+
+
+

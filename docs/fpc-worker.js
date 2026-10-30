@@ -43,10 +43,10 @@ self.onmessage = (event) => {
       });
       const order = Number(payload.order || 7);
       const window = Number(payload.window || 500);
-      const step = Number(payload.step || 125);
+      const step = Number(payload.step || Math.max(1, Math.floor(window / 4)));
       const zThreshold = Number(payload.zThreshold || 3.2);
       const alpha = Number(payload.alpha || 0.05);
-      const mergeGap = Number(payload.mergeGap || 1000);
+      const mergeGap = payload.mergeGap !== undefined ? Number(payload.mergeGap) : window * 2;
 
       let scanOut;
       if (payload.refText && String(payload.refText).trim().length > 0) {
