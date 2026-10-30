@@ -310,6 +310,7 @@ static int prune_prototypes(
     double *X, double *N, double *usage, int m, int max_prototypes, int a
 ) {
     if (m <= max_prototypes) return m;
+    if (max_prototypes <= 0) return 0;
     UsagePair *pairs = (UsagePair *)malloc((size_t)m * sizeof(UsagePair));
     int *keep = (int *)malloc((size_t)max_prototypes * sizeof(int));
     if (!pairs || !keep) {

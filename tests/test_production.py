@@ -415,3 +415,127 @@ def test_cli_end_to_end_subcommands(tmp_path):
     # 6. non-zero exit code on missing file (zero silent mock fallback)
     bad = run_cli("scan", str(tmp_path / "does_not_exist.fa"), expect_ok=False)
     assert bad.returncode != 0
+
+
+def test_readme_cli_aliases_and_unclassified_low_phred_reads(tmp_path):
+    ref_dir = tmp_path / "ref_panel"
+    ref_dir.mkdir()
+    seq_a = datasets.markov_sequence(5000, DNA, order=2, concentration=0.14, seed=11)
+    seq_b = datasets.markov_sequence(5000, DNA, order=2, concentration=0.14, seed=12)
+    fa_a = ref_dir / "species_a.fna"
+    fa_b = ref_dir / "species_b.fna"
+    io_seq.write_fasta(str(fa_a), [("species_a", seq_a)])
+    io_seq.write_fasta(str(fa_b), [("species_b", seq_b)])
+
+    def run_cli(*args):
+        res = subprocess.run(
+            [sys.executable, "-m", "fpc", *args],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+        assert res.returncode == 0, f"CLI failed ({args}): {res.stderr}"
+        return res
+
+    # README pattern 1 & 2: train --double-strand -> scan --ref <.fpc.npz> --fdr 0.05 -o <tsv>
+    k12_npz = tmp_path / "k12.fpc.npz"
+    run_cli("train", str(fa_a), "-o", str(k12_npz), "--order", "6", "--double-strand", "-q")
+
+    chimera_fa = tmp_path / "chimera.fna"
+    io_seq.write_fasta(str(chimera_fa), [("chimera", seq_a[:2000] + ("GCGCACGGCCGGCGCA" * 60) + seq_a[2000:])])
+    isl_tsv = tmp_path / "islands.tsv"
+    run_cli(
+        "scan", str(chimera_fa), "--ref", str(k12_npz),
+        "--window", "400", "--step", "100", "--z-threshold", "2.8", "--fdr", "0.05",
+        "-o", str(isl_tsv), "-q",
+    )
+    assert len(isl_tsv.read_text(encoding="utf-8").strip().splitlines()) >= 2
+
+    # README pattern 3: classify --train <dir> --save-model <npz>, plus all-masked UNCLASSIFIED FASTQ read
+    clf_npz = tmp_path / "panel.clf.npz"
+    run_cli("classify", "--train", str(ref_dir), "--by-file", "--save-model", str(clf_npz), "--order", "6", "-q")
+
+    fq = tmp_path / "reads.fastq"
+    good_rc = DNA.reverse_complement(seq_b[500:680])
+    good_fwd = seq_a[900:1080]
+    lowq_read = seq_a[500:680]
+    fq.write_text(
+        f"@good_rc\n{good_rc}\n+\n{'I' * len(good_rc)}\n"
+        f"@good_fwd\n{good_fwd}\n+\n{'I' * len(good_fwd)}\n"
+        f"@all_masked\n{lowq_read}\n+\n{'#' * len(lowq_read)}\n",
+        encoding="utf-8",
+    )
+    calls_out = tmp_path / "calls.tsv"
+    run_cli("classify", str(fq), "--model", str(clf_npz), "--min-phred", "20", "-o", str(calls_out), "-q")
+    lines = calls_out.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 4
+    r_rc = lines[1].split("\t")
+    r_fwd = lines[2].split("\t")
+    r_mask = lines[3].split("\t")
+    assert r_rc[1] == "species_b" and r_rc[2] == "-"
+    assert r_fwd[1] == "species_a" and r_fwd[2] == "+"
+    assert r_mask[1] == "UNCLASSIFIED" and r_mask[2] == "." and r_mask[3] == "NA"
+
+    # README pattern 5: predict --seq ... --context ... --generate ...
+    gen = run_cli("predict", "--seq", "ACGTACGT" * 40, "--context", "ACGT", "--generate", "20").stdout.strip()
+    assert len(gen) == 24 and gen.startswith("ACGT")
+
+
+def test_web_worker_all_tabs_end_to_end():
+    node_bin = _find_node()
+    if not node_bin:
+        pytest.skip("Node.js runtime not installed")
+
+    worker_test_js = """
+    const msgs = [];
+    globalThis.self = { postMessage: (m) => msgs.push(m), onmessage: null };
+    await import("./docs/fpc-worker.js");
+
+    self.onmessage({ data: { id: 1, task: "scan", payload: {
+      alphabet: "DNA", order: 6, window: 200, step: 50, zThreshold: 2.8,
+      refText: ">ref\\n" + "AATTGCATATGCGTTA".repeat(350),
+      queryText: ">qry\\n" + "AATTGCATATGCGTTA".repeat(180) + "GCGCACGGCCGGCGCA".repeat(35) + "AATTGCATATGCGTTA".repeat(180)
+    }}});
+    self.onmessage({ data: { id: 2, task: "scan", payload: {
+      alphabet: "DNA", order: 6, window: 200, step: 50, zThreshold: 2.8,
+      refText: "",
+      queryText: ">qry_self\\n" + "AATTGCATATGCGTTA".repeat(260) + "GCGCACGGCCGGCGCA".repeat(35) + "AATTGCATATGCGTTA".repeat(260)
+    }}});
+    self.onmessage({ data: { id: 3, task: "tree", payload: {
+      alphabet: "DNA", order: 5, strandInvariant: true,
+      fastaText: ">t1\\n" + "ACGTTGCA".repeat(250) + "\\n>t2\\n" + "ACGTTGCG".repeat(250) + "\\n>t3\\n" + "CGGATCCA".repeat(250)
+    }}});
+    self.onmessage({ data: { id: 4, task: "classify", payload: {
+      alphabet: "DNA", order: 5, minPhred: 20, strandAware: true,
+      refText: ">clsA\\n" + "ACCTGAGT".repeat(250) + "\\n>clsB\\n" + "CGGAAGCT".repeat(250),
+      queryText: "@r1_rc\\n" + "ACTCAGGT".repeat(18) + "\\n+\\n" + "I".repeat(144) +
+                 "\\n@r2_fwd\\n" + "ACCTGAGT".repeat(18) + "\\n+\\n" + "I".repeat(144) +
+                 "\\n@r3_masked\\n" + "ACCTGAGT".repeat(18) + "\\n+\\n" + "#".repeat(144)
+    }}});
+    self.onmessage({ data: { id: 5, task: "predict", payload: {
+      alphabet: "DNA", order: 6, trainText: ">tr\\n" + "ACCTGAGT".repeat(250), prefix: "ACCTGAGT", length: 24, sample: false
+    }}});
+
+    const out = msgs.filter(m => m.type !== "progress");
+    process.stdout.write(JSON.stringify(out));
+    """
+    proc = subprocess.run(
+        [node_bin, "--input-type=module", "-e", worker_test_js],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    results = json.loads(proc.stdout)
+    assert len(results) == 5
+    assert all(r["type"] == "result" for r in results)
+    assert len(results[0]["result"]["islands"]) >= 1
+    assert len(results[1]["result"]["islands"]) >= 1
+    assert results[2]["result"]["newick"].endswith(";")
+    calls = results[3]["result"]["calls"]
+    assert calls[0]["predictedClass"] == "clsA" and calls[0]["strand"] == "-"
+    assert calls[1]["predictedClass"] == "clsA" and calls[1]["strand"] == "+"
+    assert calls[2]["predictedClass"] == "UNCLASSIFIED" and calls[2]["strand"] == "."
+    assert "NA" in results[3]["result"]["downloads"]["tsv"]
+    assert len(results[4]["result"]["continuation"]) == 24
+

@@ -275,6 +275,15 @@ function makeOfflineClassifySample() {
   };
 }
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ---------------------------------------------------------------------------
 // 2-D Genome Surprise & Z-Score Canvas Renderer
 // ---------------------------------------------------------------------------
@@ -300,9 +309,15 @@ function drawSurpriseTrackCanvas(canvas, track, islands, zThreshold) {
   const plotH = height - padT - padB;
 
   const maxBp = track.ends[track.ends.length - 1] || 1;
-  const zs = track.zScores.filter((v) => Number.isFinite(v));
-  const minZ = Math.min(-2.0, ...zs);
-  const maxZ = Math.max(zThreshold + 1.5, ...zs);
+  let minZ = -2.0;
+  let maxZ = zThreshold + 1.5;
+  for (let i = 0; i < track.zScores.length; i++) {
+    const v = track.zScores[i];
+    if (Number.isFinite(v)) {
+      if (v < minZ) minZ = v;
+      if (v > maxZ) maxZ = v;
+    }
+  }
   const spanZ = Math.max(1e-6, maxZ - minZ);
 
   const xOf = (bp) => padL + (bp / maxBp) * plotW;
@@ -664,7 +679,7 @@ function initWorkbench() {
           .map(
             (isl) =>
               `<tr>` +
-              `<td><code>${isl.chrom}</code></td>` +
+              `<td><code>${escapeHtml(isl.chrom)}</code></td>` +
               `<td>${isl.start.toLocaleString()}–${isl.end.toLocaleString()}</td>` +
               `<td>${isl.length.toLocaleString()} bp</td>` +
               `<td><strong>${isl.peakZ.toFixed(2)}</strong></td>` +
@@ -751,11 +766,13 @@ function initWorkbench() {
       document.getElementById("wb-tree-newick").textContent = res.newick;
 
       const headHtml =
-        "<tr><th>Taxon</th>" + res.names.map((n) => `<th><code>${n}</code></th>`).join("") + "</tr>";
+        "<tr><th>Taxon</th>" +
+        res.names.map((n) => `<th><code>${escapeHtml(n)}</code></th>`).join("") +
+        "</tr>";
       const rowsHtml = res.names
         .map(
           (nm, i) =>
-            `<tr><td><strong><code>${nm}</code></strong></td>` +
+            `<tr><td><strong><code>${escapeHtml(nm)}</code></strong></td>` +
             res.distanceMatrix[i].map((v) => `<td>${v.toFixed(4)}</td>`).join("") +
             `</tr>`
         )
@@ -837,18 +854,23 @@ function initWorkbench() {
       lastClfDownloads = res.downloads;
       document.getElementById("wb-clf-results").hidden = false;
       document.getElementById("wb-clf-tbody").innerHTML = res.calls
-        .map(
-          (c) =>
+        .map((c) => {
+          const bpb = Number.isFinite(c.bitsPerBase) ? c.bitsPerBase.toFixed(4) : "NA";
+          const ru = c.runnerUp
+            ? `${escapeHtml(c.runnerUp)} (+${Number.isFinite(c.deltaBits) ? c.deltaBits.toFixed(4) : "0.0000"} bits)`
+            : "NA";
+          return (
             `<tr>` +
-            `<td><code>${c.id}</code></td>` +
+            `<td><code>${escapeHtml(c.id)}</code></td>` +
             `<td>${c.length.toLocaleString()} bp</td>` +
-            `<td><strong style="color:var(--accent)">${c.predictedClass}</strong></td>` +
-            `<td><code>${c.strand}</code></td>` +
-            `<td>${c.bitsPerBase.toFixed(4)}</td>` +
+            `<td><strong style="color:var(--accent)">${escapeHtml(c.predictedClass)}</strong></td>` +
+            `<td><code>${escapeHtml(c.strand)}</code></td>` +
+            `<td>${bpb}</td>` +
             `<td>${(c.posterior * 100).toFixed(1)}%</td>` +
-            `<td>${c.runnerUp ?? "NA"} (+${c.deltaBits.toFixed(4)} bits)</td>` +
+            `<td>${ru}</td>` +
             `</tr>`
-        )
+          );
+        })
         .join("");
       setStatus(
         `Classified ${res.calls.length} read(s) across ${res.classes.length} classes in ${res.elapsedMs.toFixed(0)} ms`,
@@ -884,18 +906,20 @@ function initWorkbench() {
         sample: document.getElementById("wb-pred-stochastic").checked,
       });
       document.getElementById("wb-pred-results").hidden = false;
+      const mbStr = Number.isFinite(res.meanBits) ? res.meanBits.toFixed(3) : "NA";
+      const ppStr = Number.isFinite(res.perplexity) ? res.perplexity.toFixed(2) : "NA";
       document.getElementById("wb-pred-metrics").innerHTML =
         `<span>Trained on <strong>${res.trainBp.toLocaleString()}</strong> symbols</span>` +
         `<span><strong>${res.nPrototypes.toLocaleString()}</strong> prototypes</span>` +
-        `<span>Cross-entropy: <strong>${res.meanBits.toFixed(3)}</strong> bits/symbol</span>` +
-        `<span>Perplexity: <strong>${res.perplexity.toFixed(2)}</strong></span>`;
+        `<span>Cross-entropy: <strong>${mbStr}</strong> bits/symbol</span>` +
+        `<span>Perplexity: <strong>${ppStr}</strong></span>`;
 
       const barsHtml = res.symbols
         .map((sym, i) => {
           const pct = (res.nextDist[i] * 100).toFixed(1);
           return (
             `<div class="wb-prob-row">` +
-            `<code>${sym}</code>` +
+            `<code>${escapeHtml(sym)}</code>` +
             `<div class="wb-prob-track"><div class="wb-prob-fill" style="width:${pct}%"></div></div>` +
             `<span>${pct}%</span>` +
             `</div>`
@@ -904,7 +928,7 @@ function initWorkbench() {
         .join("");
       document.getElementById("wb-pred-bars").innerHTML = barsHtml;
       document.getElementById("wb-pred-seq").innerHTML =
-        `<span class="muted">${res.prefix}</span><strong style="color:var(--accent-2)">${res.continuation}</strong>`;
+        `<span class="muted">${escapeHtml(res.prefix)}</span><strong style="color:var(--accent-2)">${escapeHtml(res.continuation)}</strong>`;
       setStatus(`Generated ${res.continuation.length} symbols in ${res.elapsedMs.toFixed(0)} ms`, "ok");
     } catch (err) {
       setStatus(err.message, "err");

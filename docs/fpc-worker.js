@@ -200,7 +200,7 @@ self.onmessage = (event) => {
       const clf = new FPCClassifier(alphabet, {
         order,
         strandAware: payload.strandAware !== false,
-        doubleStrandTrain: payload.strandAware !== false && alphabet.isComplementary,
+        doubleStrandTrain: Boolean(payload.doubleStrandTrain),
       });
       clf.fit(refRecords.map((r) => ({ label: r.id, seq: r.seq })));
 

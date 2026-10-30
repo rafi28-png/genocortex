@@ -96,7 +96,7 @@ def _cmd_train(args: argparse.Namespace) -> int:
             order=args.order,
             epochs=args.epochs,
             strand_aware=not args.single_strand,
-            double_strand_train=(not args.single_strand and alphabet.is_complementary),
+            double_strand_train=bool(args.double_strand),
             max_prototypes=eff_max_proto,
         )
         clf.fit(seqs, labels)
@@ -153,8 +153,14 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         raise ValueError("Specify either --ref or --model, not both")
 
     t0 = time.perf_counter()
-    if args.model:
-        loaded_cortex = FractalPredictiveCortex.load(args.model)
+    model_path = args.model
+    ref_fasta = args.ref
+    if ref_fasta and ref_fasta.lower().endswith(".npz"):
+        model_path = ref_fasta
+        ref_fasta = None
+
+    if model_path:
+        loaded_cortex = FractalPredictiveCortex.load(model_path)
         alphabet = loaded_cortex.alphabet
     else:
         loaded_cortex = None
@@ -178,9 +184,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             min_length=args.min_length,
             cortex=loaded_cortex,
         )
-        mode_desc = f"model={args.model}"
-    elif args.ref:
-        ref_recs = read_sequences(args.ref, min_phred=args.min_phred, wildcard=alphabet.wildcard)
+        mode_desc = f"model={model_path}"
+    elif ref_fasta:
+        ref_recs = read_sequences(ref_fasta, min_phred=args.min_phred, wildcard=alphabet.wildcard)
         isl_list, win_tracks, cortex = islands.scan_against_reference(
             ref_records=ref_recs,
             query_records=query_recs,
@@ -195,7 +201,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             merge_gap=args.merge_gap,
             min_length=args.min_length,
         )
-        mode_desc = f"ref={args.ref}"
+        mode_desc = f"ref={ref_fasta}"
     else:
         isl_list, win_tracks = islands.scan_self_islands(
             query_records=query_recs,
@@ -269,8 +275,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 
 def _cmd_classify(args: argparse.Namespace) -> int:
-    if bool(args.model) == bool(args.refs):
-        raise ValueError("Specify exactly one of --model <panel.fpc.npz> or --refs <fasta...>")
+    ref_inputs = args.refs or args.train_refs
+    if bool(args.model) == bool(ref_inputs):
+        raise ValueError("Specify exactly one of --model <panel.fpc.npz> or --refs/--train <fasta...>")
 
     t0 = time.perf_counter()
     if args.model:
@@ -280,7 +287,7 @@ def _cmd_classify(args: argparse.Namespace) -> int:
         alphabet = clf.alphabet
     else:
         alphabet = get_alphabet(args.alphabet)
-        ref_files = _expand_input_files(args.refs)
+        ref_files = _expand_input_files(ref_inputs)
         eff_max_proto = (
             args.max_prototypes
             if args.max_prototypes is not None
@@ -298,10 +305,25 @@ def _cmd_classify(args: argparse.Namespace) -> int:
             alphabet=alphabet,
             order=args.order,
             strand_aware=not args.single_strand,
-            double_strand_train=(not args.single_strand and alphabet.is_complementary),
+            double_strand_train=bool(args.double_strand),
             max_prototypes=eff_max_proto,
         )
         clf.fit(seqs, labels)
+
+    if args.save_model:
+        clf.save(args.save_model)
+        if not args.queries:
+            dt = time.perf_counter() - t0
+            if not args.quiet:
+                print(
+                    f"[genocortex classify] Trained & saved FPCClassifier "
+                    f"({len(clf.classes_)} classes) -> {args.save_model} in {dt:.2f}s",
+                    file=sys.stderr,
+                )
+            return 0
+
+    if not args.queries:
+        raise ValueError("Provide query FASTA/FASTQ file(s) to classify (or --save-model to train & save)")
 
     query_files = _expand_input_files(args.queries)
     query_recs: list[SeqRecord] = []
@@ -314,9 +336,11 @@ def _cmd_classify(args: argparse.Namespace) -> int:
     lines = ["id\tpredicted_class\tstrand\tbits_per_base\tposterior\trunner_up\tdelta_bits\n"]
     for c in calls:
         ru = c.runner_up if c.runner_up is not None else "NA"
+        bpb_s = f"{c.bits_per_base:.4f}" if np.isfinite(c.bits_per_base) else "NA"
+        db_s = f"{c.delta_bits:.4f}" if np.isfinite(c.delta_bits) else "0.0000"
         lines.append(
-            f"{c.id}\t{c.predicted_class}\t{c.strand}\t{c.bits_per_base:.4f}\t"
-            f"{c.posterior:.4f}\t{ru}\t{c.delta_bits:.4f}\n"
+            f"{c.id}\t{c.predicted_class}\t{c.strand}\t{bpb_s}\t"
+            f"{c.posterior:.4f}\t{ru}\t{db_s}\n"
         )
 
     if args.output:
@@ -409,23 +433,27 @@ def _cmd_tree(args: argparse.Namespace) -> int:
 
 
 def _cmd_predict(args: argparse.Namespace) -> int:
-    if bool(args.model) == bool(args.train):
-        raise ValueError("Specify exactly one of --model <cortex.fpc.npz> or --train <seq.fa>")
+    sources = int(bool(args.model)) + int(bool(args.train)) + int(bool(args.seq))
+    if sources != 1:
+        raise ValueError("Specify exactly one of --model <cortex.fpc.npz>, --train <seq.fa>, or --seq <SEQUENCE>")
 
     if args.model:
         cortex = FractalPredictiveCortex.load(args.model)
         alphabet = cortex.alphabet
     else:
         alphabet = get_alphabet(args.alphabet)
-        recs = read_sequences(args.train, wildcard=alphabet.wildcard)
         cortex = FractalPredictiveCortex(
             alphabet=alphabet,
             order=args.order,
             max_prototypes=islands.default_max_prototypes(alphabet, args.order),
             seed=args.seed,
         )
-        for r in recs:
-            cortex.fit(alphabet.encode(r.seq))
+        if args.seq:
+            cortex.fit(alphabet.encode(args.seq.strip().upper()))
+        else:
+            recs = read_sequences(args.train, wildcard=alphabet.wildcard)
+            for r in recs:
+                cortex.fit(alphabet.encode(r.seq))
 
     if args.eval:
         eval_recs = read_sequences(args.eval, wildcard=alphabet.wildcard)
@@ -435,7 +463,7 @@ def _cmd_predict(args: argparse.Namespace) -> int:
         return 0
 
     if not args.prefix:
-        raise ValueError("Provide --prefix <SEQ> for continuation or --eval <FASTA> for evaluation")
+        raise ValueError("Provide --prefix/--context <SEQ> for continuation or --eval <FASTA> for evaluation")
 
     cortex._rng = np.random.default_rng(args.seed)
     generated = tasks.complete(
@@ -493,6 +521,7 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("--epochs", type=int, default=1, help="Number of streaming passes (default: 1)")
     pt.add_argument("--by-file", action="store_true", help="Train a multi-class FPCClassifier (one class per input file)")
     pt.add_argument("--by-record", action="store_true", help="Train a multi-class FPCClassifier (one class per record ID)")
+    pt.add_argument("--double-strand", action="store_true", help="Enable double-strand reverse-complement learning (default for DNA/RNA)")
     pt.add_argument("--single-strand", action="store_true", help="Disable double-strand reverse-complement learning")
     pt.add_argument("--min-phred", type=int, default=0, help="Mask FASTQ bases with Phred quality < MIN_PHRED")
     pt.add_argument("-q", "--quiet", action="store_true", help="Suppress stderr progress summary")
@@ -501,7 +530,7 @@ def build_parser() -> argparse.ArgumentParser:
     # -- scan ------------------------------------------------------------
     ps = sub.add_parser("scan", help="Scan chromosomes/contigs for HGT & pathogenicity islands")
     ps.add_argument("query", help="Query FASTA/FASTQ(.gz) file or '-' for stdin")
-    ps.add_argument("--ref", default=None, help="Reference genome FASTA/FASTQ(.gz)")
+    ps.add_argument("--ref", default=None, help="Reference genome FASTA/FASTQ(.gz) or pre-trained .fpc.npz model")
     ps.add_argument("--model", default=None, help="Pre-trained reference cortex (.fpc.npz)")
     ps.add_argument("--self", dest="self_scan", action="store_true", help="Reference-free buffered K-fold island scan (default if no --ref/--model)")
     ps.add_argument("-a", "--alphabet", default="dna", help="Alphabet: dna, rna, or protein (default: dna)")
@@ -511,15 +540,16 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("-w", "--window", type=int, default=1000, help="Sliding window width in bp (default: 1000)")
     ps.add_argument("-s", "--step", type=int, default=250, help="Sliding window step in bp (default: 250)")
     ps.add_argument("-z", "--z-threshold", type=float, default=3.5, help="Robust z-score threshold (default: 3.5)")
-    ps.add_argument("--alpha", type=float, default=0.05, help="Benjamini-Hochberg FDR q-value cutoff (default: 0.05)")
+    ps.add_argument("--alpha", "--fdr", dest="alpha", type=float, default=0.05, help="Benjamini-Hochberg FDR q-value cutoff (default: 0.05)")
     ps.add_argument("--merge-gap", type=int, default=2000, help="Max bp gap to merge adjacent island windows (default: 2000)")
     ps.add_argument("--min-length", type=int, default=None, help="Minimum island length in bp (default: window)")
+    ps.add_argument("--double-strand", action="store_true", help="Enable double-strand reference training (default for DNA/RNA)")
     ps.add_argument("--single-strand", action="store_true", help="Disable double-strand reference training")
     ps.add_argument("--min-phred", type=int, default=0, help="Mask FASTQ bases with Phred quality < MIN_PHRED")
     ps.add_argument("--bed", default=None, help="Write standard 6-column BED file")
     ps.add_argument("--bedgraph", default=None, help="Write UCSC/IGV BedGraph track")
     ps.add_argument("--bedgraph-metric", choices=["z_score", "bits"], default="z_score", help="BedGraph value column (default: z_score)")
-    ps.add_argument("--tsv", default=None, help="Write full statistical TSV island report")
+    ps.add_argument("-o", "--output", "--tsv", dest="tsv", default=None, help="Write full statistical TSV island report")
     ps.add_argument("--html", default=None, help="Write offline 3-D Plotly cognitive map HTML")
     ps.add_argument("--only-significant", action="store_true", help="Only emit islands passing Benjamini-Hochberg FDR")
     ps.add_argument("--stdout", action="store_true", help="Also print TSV island table to stdout")
@@ -528,14 +558,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     # -- classify --------------------------------------------------------
     pc = sub.add_parser("classify", help="Classify FASTA/FASTQ reads or contigs by minimum description length")
-    pc.add_argument("queries", nargs="+", help="Query FASTA/FASTQ(.gz) file(s), directory, or '-'")
+    pc.add_argument("queries", nargs="*", help="Query FASTA/FASTQ(.gz) file(s), directory, or '-'")
     pc.add_argument("--model", default=None, help="Saved FPCClassifier archive (.fpc.npz)")
     pc.add_argument("--refs", nargs="+", default=None, help="Reference FASTA/FASTQ file(s) or directory to train on the fly")
-    pc.add_argument("--by-file", action="store_true", help="Group --refs by file stem")
-    pc.add_argument("--by-record", action="store_true", help="Group --refs by sequence record ID")
-    pc.add_argument("-a", "--alphabet", default="dna", help="Alphabet when using --refs (default: dna)")
-    pc.add_argument("-k", "--order", type=int, default=7, help="Context order when using --refs (default: 7)")
+    pc.add_argument("--train", dest="train_refs", nargs="+", default=None, help="Alias for --refs (train multi-class classifier from file(s) or directory)")
+    pc.add_argument("--save-model", default=None, help="Save trained FPCClassifier to .fpc.npz")
+    pc.add_argument("--by-file", action="store_true", help="Group --refs/--train by file stem")
+    pc.add_argument("--by-record", action="store_true", help="Group --refs/--train by sequence record ID")
+    pc.add_argument("-a", "--alphabet", default="dna", help="Alphabet when using --refs/--train (default: dna)")
+    pc.add_argument("-k", "--order", type=int, default=7, help="Context order when using --refs/--train (default: 7)")
     pc.add_argument("--max-prototypes", type=int, default=None, help="Maximum prototypes per class")
+    pc.add_argument("--double-strand", action="store_true", help="Also train each reference class on its reverse complement")
     pc.add_argument("--single-strand", action="store_true", help="Disable reverse-complement strand evaluation")
     pc.add_argument("--min-phred", type=int, default=0, help="Mask FASTQ bases with Phred quality < MIN_PHRED")
     pc.add_argument("-o", "--output", default=None, help="Output TSV file (default: stdout)")
@@ -563,14 +596,15 @@ def build_parser() -> argparse.ArgumentParser:
     pp = sub.add_parser("predict", help="Evaluate next-symbol perplexity or generate sequence continuations")
     pp.add_argument("--model", default=None, help="Pre-trained cortex (.fpc.npz)")
     pp.add_argument("--train", default=None, help="Training FASTA/FASTQ file")
+    pp.add_argument("--seq", default=None, help="Inline raw sequence string to learn from")
     pp.add_argument("--eval", default=None, help="Held-out FASTA/FASTQ file to evaluate accuracy & perplexity")
-    pp.add_argument("--prefix", default=None, help="Seed prefix string to continue")
-    pp.add_argument("-n", "--length", type=int, default=100, help="Number of symbols to generate (default: 100)")
+    pp.add_argument("--prefix", "--context", dest="prefix", default=None, help="Seed prefix string to continue")
+    pp.add_argument("-n", "--length", "--generate", dest="length", type=int, default=100, help="Number of symbols to generate (default: 100)")
     pp.add_argument("--sample", action="store_true", help="Sample stochastically instead of greedy argmax")
     pp.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature (default: 1.0)")
     pp.add_argument("--seed", type=int, default=0, help="Random seed (default: 0)")
-    pp.add_argument("-a", "--alphabet", default="dna", help="Alphabet when using --train (default: dna)")
-    pp.add_argument("-k", "--order", type=int, default=7, help="Context order when using --train (default: 7)")
+    pp.add_argument("-a", "--alphabet", default="dna", help="Alphabet when using --train/--seq (default: dna)")
+    pp.add_argument("-k", "--order", type=int, default=7, help="Context order when using --train/--seq (default: 7)")
     pp.set_defaults(func=_cmd_predict)
 
     # -- info ------------------------------------------------------------

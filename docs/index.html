@@ -488,13 +488,13 @@
     <p class="muted" style="max-width:840px">
       GenoCortex maps a sequence through a <strong>Chaos Game Representation</strong>, turning variable-length
       preceding context into coordinates in <code>[0, 1]²</code>. An adaptive set of predictive
-      <strong>prototypes</strong> indexed by an exact <code>32×32</code> spatial grid grows wherever predictive
+      <strong>prototypes</strong> indexed by an exact power-of-2 spatial grid (<code>32×32</code> to <code>256×256</code>) grows wherever predictive
       surprise (&minus;log&#8322;&nbsp;P) spikes. All four sequence capabilities are direct read-outs of that
       single description-length objective:
     </p>
     <div class="grid g4" style="margin-top:26px">
       <div class="card"><h3>Predict</h3><p>Gaussian-blended next-symbol distribution <code>P(next | CGR context)</code> with automatic variable-order smoothing.</p></div>
-      <div class="card"><h3>Detect</h3><p>Pathogenicity islands, prophages &amp; mutations emerge as robust z-score peaks with Benjamini–Hochberg FDR control.</p></div>
+      <div class="card"><h3>Detect</h3><p>Local-entropy-normalised excess surprise <code>CE(W) &minus; H₀(W)</code> flags AT-rich PAIs &amp; GC-rich morons with Benjamini–Hochberg FDR control.</p></div>
       <div class="card"><h3>Classify</h3><p>Assign unoriented FASTA/FASTQ reads to the reference cortex that is <span class="k">least surprised</span> on either <code>+</code> or <code>&minus;</code> strand.</p></div>
       <div class="card"><h3>Discover</h3><p>Strand-invariant symmetric cross-entropy distance feeds pure-NumPy Saitou–Nei Neighbour-Joining phylogenetics.</p></div>
     </div>
@@ -534,7 +534,7 @@
     <table>
       <thead><tr><th>Task</th><th>GenoCortex</th><th>Baselines</th><th>Outcome</th></tr></thead>
       <tbody>
-        <tr><td>Megabase HGT &amp; pathogenicity islands (<em>E. coli</em> O157:H7 5.50 Mb vs K-12 4.64 Mb)</td><td class="fpc">LEE + Stx1/Stx2 phages</td><td>Double-strand ANSI C kernel (&gt;1 Mb/s)</td><td>recovers major O-islands &amp; prophages in seconds; immune to core inversions</td></tr>
+        <tr><td>Megabase HGT &amp; pathogenicity islands (<em>E. coli</em> O157:H7 5.50 Mb vs K-12 4.64 Mb)</td><td class="fpc">5/5 canonical loci in 15.5 s</td><td>Double-strand ANSI C kernel (10.14 Mb)</td><td>recovers LEE, SpLE1, SpLE3 &amp; Stx1/Stx2 prophage morons (BH FDR q &lt; 0.01)</td></tr>
         <tr><td>Phylogeny — 25 synthetic trees (Pearson r)</td><td class="fpc">0.93</td><td>FFP 0.93 · NCCD 0.93 · NRC 0.92 · Mash 0.91 · k-mer cos 0.78</td><td>statistically tied with FFP/Mash/NRC/NCCD; beats k-mer cosine</td></tr>
         <tr><td>Phylogeny — 17 real mitogenomes (Robinson–Foulds, lower better)</td><td class="fpc">0.43</td><td>NRC 0.36 · NCCD/FFP/Mash 0.43 · k-mer cos 0.71</td><td>ties the standard tools; slightly behind NRC</td></tr>
         <tr><td>Short-read classification (150 bp, unoriented +/&minus;)</td><td class="fpc">100%</td><td>k-mer+1NN 97% · logistic 94%</td><td>calls both taxon and strand (+/&minus;) accurately</td></tr>

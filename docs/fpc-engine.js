@@ -1651,6 +1651,24 @@ export class FPCClassifier {
         strands[j] = "+";
       }
 
+      let anyFinite = false;
+      for (let j = 0; j < nCls; j++) {
+        if (Number.isFinite(scores[j])) anyFinite = true;
+      }
+      if (!anyFinite) {
+        calls.push({
+          id: rec.id,
+          length: rec.seq.length,
+          predictedClass: "UNCLASSIFIED",
+          strand: ".",
+          bitsPerBase: NaN,
+          posterior: 1.0 / Math.max(1, nCls),
+          runnerUp: null,
+          deltaBits: 0.0,
+        });
+        continue;
+      }
+
       let maxLogit = -Infinity;
       const logits = new Float64Array(nCls);
       for (let j = 0; j < nCls; j++) {
@@ -1665,11 +1683,13 @@ export class FPCClassifier {
       }
       for (let j = 0; j < nCls; j++) probs[j] /= pSum || 1.0;
 
-      const order = Array.from({ length: nCls }, (_, j) => j).sort(
-        (a, b) => scores[a] - scores[b]
-      );
+      const order = Array.from({ length: nCls }, (_, j) => j).sort((a, b) => {
+        const sa = Number.isFinite(scores[a]) ? scores[a] : Infinity;
+        const sb = Number.isFinite(scores[b]) ? scores[b] : Infinity;
+        return sa - sb || a - b;
+      });
       const bestJ = order[0];
-      const secJ = nCls >= 2 ? order[1] : -1;
+      const secJ = nCls >= 2 && Number.isFinite(scores[order[1]]) ? order[1] : -1;
 
       calls.push({
         id: rec.id,
@@ -1691,9 +1711,11 @@ export function formatClassificationTsv(calls) {
     "id\tlength\tpredicted_class\tstrand\tbits_per_base\tposterior\trunner_up\tdelta_bits",
   ];
   for (const c of calls) {
+    const bpb = Number.isFinite(c.bitsPerBase) ? c.bitsPerBase.toFixed(4) : "NA";
+    const db = Number.isFinite(c.deltaBits) ? c.deltaBits.toFixed(4) : "0.0000";
     lines.push(
-      `${c.id}\t${c.length}\t${c.predictedClass}\t${c.strand}\t${c.bitsPerBase.toFixed(4)}\t` +
-        `${c.posterior.toFixed(4)}\t${c.runnerUp ?? "NA"}\t${c.deltaBits.toFixed(4)}`
+      `${c.id}\t${c.length}\t${c.predictedClass}\t${c.strand}\t${bpb}\t` +
+        `${c.posterior.toFixed(4)}\t${c.runnerUp ?? "NA"}\t${db}`
     );
   }
   return lines.join("\n") + "\n";

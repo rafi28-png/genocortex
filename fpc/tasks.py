@@ -273,13 +273,27 @@ class FPCClassifier:
 
         for i, rid in enumerate(ids_list):
             row = M[i]
-            order = np.argsort(row)
+            if not np.any(np.isfinite(row)):
+                calls.append(
+                    ClassificationCall(
+                        id=rid,
+                        predicted_class="UNCLASSIFIED",
+                        strand=".",
+                        bits_per_base=float("nan"),
+                        posterior=float(1.0 / max(1, n_cls)),
+                        runner_up=None,
+                        delta_bits=0.0,
+                    )
+                )
+                continue
+            safe_row = np.where(np.isfinite(row), row, np.inf)
+            order = np.argsort(safe_row, kind="mergesort")
             best_j = int(order[0])
             best_cls = str(self.classes_[best_j])
             best_bits = float(row[best_j])
             best_strand = strands[i][best_j]
             post = float(probs[i, best_j])
-            if n_cls >= 2:
+            if n_cls >= 2 and np.isfinite(row[int(order[1])]):
                 sec_j = int(order[1])
                 runner_up = str(self.classes_[sec_j])
                 delta = float(row[sec_j] - best_bits)
