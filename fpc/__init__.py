@@ -10,35 +10,43 @@ a single quantity -- *surprise* (the negative log-probability of what comes
 next) -- to simultaneously:
 
     * predict   : what symbol / region comes next,
-    * detect    : mutations & anomalies as localized spikes of surprise,
-    * classify  : "which brain is least surprised" (a generative,
+    * detect    : mutations, horizontal gene transfer & pathogenicity islands,
+    * classify  : "which brain is least surprised" (a strand-aware generative,
                   minimum-description-length classifier),
-    * discover  : hidden structure, via the geometry of the surprise landscape.
+    * discover  : Neighbor-Joining phylogenetics & 3-D surprise geometry.
 
-The engine depends only on NumPy and SciPy. No API. No pretrained model.
-No internet. It runs offline, forever.
+The engine depends only on NumPy and SciPy (with an optional ANSI C PEP 3118
+spatial-grid kernel ``fpc._fast`` for megabase-per-second throughput). No API.
+No pretrained model. No internet required.
 
 License: MIT (see LICENSE).
 """
 
-from .alphabet import Alphabet, DNA, RNA, PROTEIN
+from .alphabet import Alphabet, DNA, RNA, PROTEIN, BUILTIN_ALPHABETS, get_alphabet
 from .cgr import ChaosGameEmbedding
-from .cortex import FractalPredictiveCortex
-from .surprise import SurpriseTrack, Anomaly
-from . import tasks, datasets, io_fasta
+from .cortex import FractalPredictiveCortex, HAS_FAST_KERNEL
+from .surprise import SurpriseTrack, Anomaly, benjamini_hochberg
+from . import tasks, datasets, io_fasta, io_seq, phylo, islands
 
 __all__ = [
     "Alphabet",
     "DNA",
     "RNA",
     "PROTEIN",
+    "BUILTIN_ALPHABETS",
+    "get_alphabet",
     "ChaosGameEmbedding",
     "FractalPredictiveCortex",
+    "HAS_FAST_KERNEL",
     "SurpriseTrack",
     "Anomaly",
+    "benjamini_hochberg",
     "tasks",
     "datasets",
     "io_fasta",
+    "io_seq",
+    "phylo",
+    "islands",
 ]
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

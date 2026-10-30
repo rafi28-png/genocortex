@@ -36,6 +36,13 @@ import numpy as np
 
 from .alphabet import Alphabet
 
+try:
+    from . import _fast
+    _HAVE_FAST_CGR = True
+except Exception:  # pragma: no cover - optional compiled accelerator
+    _fast = None
+    _HAVE_FAST_CGR = False
+
 
 class ChaosGameEmbedding:
     """Maps symbol-id sequences into the 2-D fractal mind-space.
@@ -47,9 +54,12 @@ class ChaosGameEmbedding:
     contraction:
         Optional override for the contraction ratio ``r``. If ``None`` a good
         default is chosen from the alphabet size (see module docstring).
+    use_fast:
+        Use the compiled C kernel ``fpc._fast`` when available (default True).
     """
 
-    def __init__(self, alphabet: Alphabet, contraction: float | None = None):
+    def __init__(self, alphabet: Alphabet, contraction: float | None = None,
+                 use_fast: bool = True):
         self.alphabet = alphabet
         a = alphabet.size
         if contraction is None:
@@ -57,10 +67,13 @@ class ChaosGameEmbedding:
         if not (0.0 < contraction < 1.0):
             raise ValueError("contraction must lie in (0, 1)")
         self.r = float(contraction)
+        self.use_fast = bool(use_fast)
         self.centre = np.array([0.5, 0.5], dtype=np.float64)
         self.vertices = self._build_vertices(a)
         # Wildcard "vertex" is the centre -> a neutral, information-free pull.
-        self._all_vertices = np.vstack([self.vertices, self.centre])
+        self._all_vertices = np.ascontiguousarray(
+            np.vstack([self.vertices, self.centre]), dtype=np.float64
+        )
 
     # -- geometry --------------------------------------------------------
     @staticmethod
@@ -78,51 +91,55 @@ class ChaosGameEmbedding:
                                 0.5 + 0.5 * np.sin(theta)]).astype(np.float64)
 
     # -- the core map ----------------------------------------------------
-    def embed(self, ids: np.ndarray) -> np.ndarray:
+    def embed(self, ids: np.ndarray, use_fast: bool | None = None) -> np.ndarray:
         """Return the CGR trajectory ``P`` with ``P[t]`` = point *after* symbol
-        ``t``. Shape ``(T, 2)``. Vectorised, so it is fast on whole genomes.
+        ``t``. Shape ``(T, 2)``. Accelerated in C when ``fpc._fast`` is built.
 
         The recurrence ``p_t = (1-r) p_{t-1} + r v_t`` is linear, hence
 
             ``p_t = (1-r)^{t+1} centre + r * sum_{j<=t} (1-r)^{t-j} v_j``.
-
-        We evaluate it with a stable cumulative reweighting rather than a
-        Python loop.
         """
-        ids = np.asarray(ids, dtype=np.int64)
-        T = ids.shape[0]
+        ids_c = np.ascontiguousarray(ids, dtype=np.int64)
+        T = ids_c.shape[0]
         if T == 0:
             return np.empty((0, 2), dtype=np.float64)
-        v = self._all_vertices[ids]                      # (T, 2) target vertices
+
+        fast = self.use_fast if use_fast is None else bool(use_fast)
+        P = np.empty((T, 2), dtype=np.float64)
+
+        if fast and _HAVE_FAST_CGR:
+            _fast.cgr_embed(
+                ids_c,
+                self._all_vertices,
+                float(self.centre[0]),
+                float(self.centre[1]),
+                self.r,
+                P,
+            )
+            return P
+
+        n_verts = len(self._all_vertices)
+        safe_ids = np.where((ids_c >= 0) & (ids_c < n_verts), ids_c, n_verts - 1)
+        v = self._all_vertices[safe_ids]                  # (T, 2) target vertices
         r = self.r
         one_minus = 1.0 - r
-
-        # Weighted running sum computed via logs of (1-r) to stay stable for
-        # long sequences. w_t = (1-r)^t ; scaled contributions r*v_j / w_{j+1}.
-        t_idx = np.arange(T, dtype=np.float64)
-        # Contribution of vertex j to the sum, factored so the cumsum is O(T):
-        #   p_t = (1-r)^{t+1} c + r * (1-r)^t * cumsum_j [ v_j / (1-r)^{j+1} ]
-        # To avoid overflow of (1-r)^{-j} we instead just run a compact loop in
-        # NumPy over chunks; for clarity and robustness we use the direct O(T)
-        # scan below (still pure NumPy, no per-symbol Python overhead via
-        # np.frompyfunc-free accumulation).
-        P = np.empty((T, 2), dtype=np.float64)
         acc = self.centre.copy()
         rv = r * v                                        # precompute r * vertex
-        for t in range(T):                                # single tight loop
+        for t in range(T):
             acc = one_minus * acc + rv[t]
             P[t] = acc
-        del t_idx
         return P
 
-    def context_points(self, ids: np.ndarray) -> np.ndarray:
+    def context_points(self, ids: np.ndarray, use_fast: bool | None = None) -> np.ndarray:
         """Points that represent the *context preceding* each position.
 
         ``C[t]`` is where the trajectory sits just before symbol ``t`` is read,
         i.e. the geometric summary of symbols ``0..t-1``. ``C[0]`` is the
         centre. This is what the cortex uses to predict symbol ``t``.
         """
-        P = self.embed(ids)
+        P = self.embed(ids, use_fast=use_fast)
+        if len(P) == 0:
+            return P
         C = np.empty_like(P)
         C[0] = self.centre
         if len(P) > 1:

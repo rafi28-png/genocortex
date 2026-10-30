@@ -33,21 +33,51 @@ except Exception:  # pragma: no cover - scipy is a declared dependency
     _HAVE_SCIPY = False
 
 
+def benjamini_hochberg(p_values: np.ndarray, total_tests: int | None = None) -> np.ndarray:
+    """Compute step-up Benjamini-Hochberg FDR q-values.
+
+    Parameters
+    ----------
+    p_values:
+        1-D array of raw upper-tail p-values for candidate regions.
+    total_tests:
+        Effective number of tests ``M`` across the scanned genome/sequence
+        (defaults to ``len(p_values)``, coerced to ``>= len(p_values)``).
+    """
+    p = np.asarray(p_values, dtype=np.float64)
+    k = len(p)
+    if k == 0:
+        return np.empty(0, dtype=np.float64)
+    m = max(k, int(total_tests) if total_tests is not None else k)
+    order = np.argsort(p, kind="mergesort")
+    ranked_p = p[order]
+    ranks = np.arange(1, k + 1, dtype=np.float64)
+    raw_q = ranked_p * (m / ranks)
+    # Enforce monotonicity from largest rank down to 1, capped at 1.0
+    mono_q = np.minimum(1.0, np.minimum.accumulate(raw_q[::-1])[::-1])
+    out = np.empty(k, dtype=np.float64)
+    out[order] = mono_q
+    return out
+
+
 @dataclass
 class Anomaly:
     """One flagged region of unusually high surprise."""
-    start: int          # inclusive, 0-based position in the sequence
-    end: int            # inclusive
-    peak_pos: int       # position of maximum smoothed surprise
-    peak_z: float       # robust z-score at the peak
-    mean_bits: float    # average surprise (bits) inside the region
-    p_value: float      # per-region significance (upper tail)
-    significant: bool   # survives the multiple-testing correction
+    start: int                  # inclusive, 0-based position in the sequence
+    end: int                    # inclusive
+    peak_pos: int               # position of maximum smoothed surprise
+    peak_z: float               # robust z-score at the peak
+    mean_bits: float            # average surprise (bits) inside the region
+    p_value: float              # per-region significance (upper tail)
+    significant: bool           # survives Bonferroni family-wise error control
+    q_value: float = 1.0        # Benjamini-Hochberg FDR-adjusted q-value
+    fdr_significant: bool = False  # survives Benjamini-Hochberg FDR <= alpha
 
     def __repr__(self) -> str:  # pragma: no cover - cosmetic
-        flag = "*" if self.significant else " "
+        flag = "*" if self.significant else ("+" if self.fdr_significant else " ")
         return (f"Anomaly{flag}[{self.start}-{self.end}] "
-                f"z={self.peak_z:.1f} bits={self.mean_bits:.2f} p={self.p_value:.1e}")
+                f"z={self.peak_z:.1f} bits={self.mean_bits:.2f} "
+                f"p={self.p_value:.1e} q={self.q_value:.1e}")
 
 
 class SurpriseTrack:
@@ -108,14 +138,16 @@ class SurpriseTrack:
         Method: smooth the surprise, build a *robust* baseline from the median
         and MAD (so a few big spikes do not inflate the baseline), z-score every
         position, then merge contiguous runs above ``z_threshold`` into regions.
-        Each region gets an upper-tail Gaussian p-value at its peak and a
-        Bonferroni flag against the number of independent windows tested.
+        Each region gets an upper-tail Gaussian p-value at its peak, a
+        Bonferroni ``significant`` flag, and a Benjamini-Hochberg FDR ``q_value``
+        and ``fdr_significant`` flag against the number of independent windows.
 
         Parameters
         ----------
         window:       smoothing / scan width, in symbols.
         z_threshold:  robust-z cutoff for calling a position "surprising".
-        alpha:        family-wise error rate for the ``significant`` flag.
+        alpha:        error-rate cutoff for ``significant`` (FWER) and
+                      ``fdr_significant`` (Benjamini-Hochberg FDR).
         """
         s = self.smoothed(window)
         finite = np.isfinite(s)
@@ -131,7 +163,7 @@ class SurpriseTrack:
         above = np.zeros(s.shape, dtype=bool)
         above[finite] = z[finite] >= z_threshold
 
-        # Number of roughly-independent tests (for Bonferroni).
+        # Number of roughly-independent tests (for Bonferroni & BH FDR).
         n_tests = max(1, int(finite.sum() // max(1, window)))
         p_cut = alpha / n_tests
 
@@ -161,6 +193,15 @@ class SurpriseTrack:
                 mean_bits=region_bits, p_value=p, significant=(p <= p_cut),
             ))
             i = j + 1
+
+        if anomalies:
+            q_vals = benjamini_hochberg(
+                np.array([a.p_value for a in anomalies], dtype=np.float64),
+                total_tests=max(n_tests, len(anomalies)),
+            )
+            for anom, qv in zip(anomalies, q_vals):
+                anom.q_value = float(qv)
+                anom.fdr_significant = bool(qv <= alpha)
         return anomalies
 
     def __len__(self) -> int:  # pragma: no cover - trivial

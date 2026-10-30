@@ -1,9 +1,13 @@
-# Python
+# Python & compiled extensions
 __pycache__/
 *.py[cod]
+*.so
+*.pyd
 *.egg-info/
 .pytest_cache/
 .ipynb_checkpoints/
+.venv/
+venv/
 build/
 dist/
 

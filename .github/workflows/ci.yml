@@ -1,0 +1,44 @@
+name: GenoCortex CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} (C Kernel + JS Engine + CLI)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Node.js 20 (for client-side JS engine parity tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install GenoCortex with compiled C extension
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e ".[all]"
+
+      - name: Verify compiled C PEP 3118 kernel is active
+        run: |
+          genocortex info
+          python -c "import fpc; assert fpc.HAS_FAST_KERNEL, 'C kernel failed to build!'"
+
+      - name: Run full pytest suite (core + production + JS parity + CLI)
+        run: |
+          pytest tests/ -v

@@ -3,20 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GenoCortex — the Fractal Predictive Cortex</title>
-<meta name="description" content="A training-free, alignment-free, self-organising model for biological sequences that unifies prediction, anomaly detection, classification, and phylogenetics from one surprise-minimisation objective.">
+<meta name="theme-color" content="#0d0d0d">
+<title>GenoCortex v1.0 — Fractal Predictive Cortex &amp; Live Genomics Workbench</title>
+<meta name="description" content="A training-free, alignment-free, self-organising model for megabase genomics that unifies prediction, horizontal gene transfer / pathogenicity island detection, strand-aware read classification, and Neighbour-Joining phylogenetics.">
 <style>
   :root{
-    --bg:#0d0d0d; --surface:#17181a; --surface2:#1e2023; --border:rgba(255,255,255,.09);
+    color-scheme:dark;
+    --bg:#0d0d0d; --surface:#17181a; --surface2:#1e2023; --border:rgba(255,255,255,.10);
     --ink:#f4f5f7; --muted:#a8abb0; --accent:#3987e5; --accent-2:#1baf7a; --warn:#eb6834;
-    --radius:14px; --maxw:1080px;
+    --radius:14px; --maxw:1120px;
   }
   *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
+  html{scroll-behavior:smooth; scrollbar-color:#353840 #121316; scrollbar-width:thin}
+  @supports not (scrollbar-color:auto){
+    ::-webkit-scrollbar{width:9px; height:9px}
+    ::-webkit-scrollbar-track{background:#121316}
+    ::-webkit-scrollbar-thumb{background:#353840; border-radius:5px}
+  }
   body{
     margin:0; background:var(--bg); color:var(--ink);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     line-height:1.6; -webkit-font-smoothing:antialiased;
+    accent-color:var(--accent);
   }
   a{color:var(--accent); text-decoration:none}
   a:hover{text-decoration:underline}
@@ -28,26 +36,34 @@
   section:first-of-type{border-top:none}
 
   /* hero */
-  .hero{position:relative; padding:74px 0 60px; overflow:hidden}
+  .hero{position:relative; padding:72px 0 58px; overflow:hidden}
   .hero::before{
     content:""; position:absolute; inset:-30% -10% auto -10%; height:520px;
-    background:radial-gradient(60% 60% at 30% 20%, rgba(57,135,229,.20), transparent 70%),
-               radial-gradient(50% 50% at 85% 10%, rgba(27,175,122,.14), transparent 70%);
+    background:radial-gradient(60% 60% at 30% 20%, rgba(57,135,229,.22), transparent 70%),
+               radial-gradient(50% 50% at 85% 10%, rgba(27,175,122,.15), transparent 70%);
     z-index:0; filter:blur(10px);
   }
   .hero .wrap{position:relative; z-index:1}
-  .eyebrow{color:var(--accent); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:.78rem}
+  .eyebrow{color:var(--accent); font-weight:600; letter-spacing:.05em; text-transform:uppercase; font-size:.78rem}
   .hero h1{font-size:2.6rem; margin:.25em 0 .35em; letter-spacing:-.5px}
-  .hero p.lede{font-size:1.18rem; color:#d7d9dd; max-width:760px}
+  .hero p.lede{font-size:1.15rem; color:#d7d9dd; max-width:800px}
   .byline{margin-top:14px; color:var(--muted); font-size:.95rem}
   .btns{display:flex; flex-wrap:wrap; gap:12px; margin-top:26px}
-  .btn{display:inline-block; padding:11px 18px; border-radius:10px; font-weight:600; border:1px solid var(--border)}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    padding:10px 18px; border-radius:10px; font-weight:600; font-size:.93rem;
+    border:1px solid var(--border); cursor:pointer; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease;
+  }
   .btn.primary{background:var(--accent); color:#04101f; border-color:transparent}
   .btn.primary:hover{background:#5598e7; text-decoration:none}
+  .btn.emerald{background:var(--accent-2); color:#04170f; border-color:transparent}
+  .btn.emerald:hover{background:#28c88f; text-decoration:none}
   .btn.ghost{background:var(--surface); color:var(--ink)}
   .btn.ghost:hover{background:var(--surface2); text-decoration:none}
+  .btn.sm{padding:7px 13px; font-size:.83rem; border-radius:8px}
   .tags{margin-top:22px; display:flex; flex-wrap:wrap; gap:8px}
-  .tag{font-size:.78rem; color:var(--muted); background:var(--surface); border:1px solid var(--border); padding:5px 10px; border-radius:999px}
+  .tag{font-size:.78rem; color:var(--muted); background:var(--surface); border:1px solid var(--border); padding:5px 11px; border-radius:999px}
 
   /* generic grid */
   .grid{display:grid; gap:18px}
@@ -62,7 +78,82 @@
   .card p{margin:.3em 0 0; color:var(--muted); font-size:.94rem}
   .card .k{color:var(--accent); font-weight:700}
 
-  /* demo cards with image */
+  /* live workbench */
+  .wb-shell{
+    background:var(--surface); border:1px solid rgba(57,135,229,.28);
+    border-radius:16px; overflow:hidden; margin-top:24px;
+    box-shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  .wb-topbar{
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:12px; padding:14px 18px; background:var(--surface2); border-bottom:1px solid var(--border);
+  }
+  .wb-tabs{display:flex; flex-wrap:wrap; gap:8px}
+  .wb-tab{
+    background:transparent; color:var(--muted); border:1px solid transparent;
+    padding:8px 14px; border-radius:9px; font-weight:600; font-size:.88rem;
+    cursor:pointer; font-family:inherit;
+  }
+  .wb-tab:hover{color:var(--ink); background:rgba(255,255,255,.04)}
+  .wb-tab.active{background:rgba(57,135,229,.16); color:#82b7f7; border-color:rgba(57,135,229,.4)}
+  .wb-status{font-size:.82rem; color:var(--muted); font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+  .wb-status[data-state="busy"]{color:#7eb6ff}
+  .wb-status[data-state="ok"]{color:#4ad4a0}
+  .wb-status[data-state="err"]{color:#ff8660}
+
+  .wb-panel{padding:22px}
+  .wb-controls{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+    gap:12px; margin-bottom:16px;
+  }
+  .wb-field{display:flex; flex-direction:column; gap:5px}
+  .wb-field label{font-size:.78rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.03em}
+  .wb-field input[type="number"],
+  .wb-field input[type="text"],
+  .wb-field select,
+  .wb-textarea{
+    background:#0e1013; color:var(--ink); border:1px solid var(--border);
+    border-radius:9px; padding:8px 11px; font-size:.88rem; font-family:inherit;
+  }
+  .wb-field input:user-invalid, .wb-textarea:user-invalid{border-color:var(--warn)}
+  .wb-field input:user-valid{border-color:rgba(27,175,122,.45)}
+  .wb-textarea{
+    width:100%; min-height:132px; resize:vertical;
+    font-family:ui-monospace,"Cascadia Code",Consolas,monospace; font-size:.81rem; line-height:1.45;
+  }
+  input[type="file"]{font-size:.81rem; color:var(--muted)}
+  input[type="file"]::file-selector-button{
+    background:var(--surface2); color:var(--ink); border:1px solid var(--border);
+    border-radius:7px; padding:6px 11px; margin-right:10px; font-weight:600; cursor:pointer;
+  }
+  input[type="file"]::file-selector-button:hover{background:#292c31}
+
+  .wb-io-bar{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px}
+  .wb-ncbi-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .wb-ncbi-row input{
+    background:#0e1013; color:var(--ink); border:1px solid var(--border);
+    border-radius:8px; padding:7px 11px; font-size:.84rem; min-width:210px;
+    font-family:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  .wb-actions{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:16px}
+  .wb-metrics{
+    display:flex; flex-wrap:wrap; gap:16px; padding:12px 15px; margin:18px 0 14px;
+    background:#0e1013; border:1px solid var(--border); border-radius:10px; font-size:.87rem;
+  }
+  .wb-canvas-wrap{background:#0e1013; border:1px solid var(--border); border-radius:11px; padding:10px; margin-bottom:16px}
+  .wb-canvas{width:100%; height:210px; display:block}
+  .wb-3d-box{
+    width:100%; height:440px; background:#0e1013; border:1px solid var(--border);
+    border-radius:11px; overflow:hidden; margin:14px 0;
+  }
+  .wb-badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:.75rem; font-weight:700}
+  .wb-badge.sig{background:rgba(235,104,52,.2); color:#ff9671; border:1px solid rgba(235,104,52,.4)}
+  .wb-badge.cand{background:rgba(255,255,255,.07); color:var(--muted)}
+  .wb-prob-row{display:grid; grid-template-columns:28px 1fr 56px; align-items:center; gap:10px; margin:6px 0; font-size:.85rem}
+  .wb-prob-track{height:10px; background:#1b1e24; border-radius:999px; overflow:hidden}
+  .wb-prob-fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+
+  /* gallery cards with image */
   .demo{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column}
   .demo img{width:100%; height:190px; object-fit:cover; background:#000; display:block}
   .demo .body{padding:16px 18px}
@@ -71,16 +162,16 @@
   .demo .open{font-weight:600; font-size:.9rem}
 
   /* results table */
-  table{width:100%; border-collapse:collapse; font-size:.92rem; overflow:hidden; border-radius:12px}
-  th,td{padding:11px 12px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+  table{width:100%; border-collapse:collapse; font-size:.89rem; overflow:hidden; border-radius:12px}
+  th,td{padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
   thead th{background:var(--surface2); color:#d7d9dd; font-weight:600}
   tbody tr:last-child td{border-bottom:none}
   td .fpc{color:var(--accent); font-weight:700}
-  .fig{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px}
+  .fig{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; margin:0}
   .fig img{width:100%; border-radius:8px; display:block}
   .fig figcaption{color:var(--muted); font-size:.85rem; margin-top:8px}
 
-  pre{background:#0b0c0d; border:1px solid var(--border); border-radius:12px; padding:16px; overflow:auto; font-size:.86rem}
+  pre{background:#0b0c0d; border:1px solid var(--border); border-radius:12px; padding:16px; overflow:auto; font-size:.85rem}
   code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
   .callout{background:linear-gradient(180deg,rgba(57,135,229,.08),transparent); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:16px 18px; color:#d7d9dd}
   footer{border-top:1px solid var(--border); padding:34px 0 60px; color:var(--muted); font-size:.9rem}
@@ -90,49 +181,330 @@
 
 <header class="hero">
   <div class="wrap">
-    <div class="eyebrow">Fractal Predictive Cortex</div>
-    <h1>One self-organising model for four sequence tasks</h1>
-    <p class="lede">GenoCortex reads a DNA or protein sequence, teaches itself to predict what comes next, and grows memory exactly where it is most surprised. From that single "surprise" signal it performs prediction, mutation/anomaly detection, classification, and phylogenetics — with no training labels, no alignment, no pretrained weights, and no fixed k&#8209;mer order.</p>
+    <div class="eyebrow">GenoCortex v1.0 · Fractal Predictive Cortex</div>
+    <h1>Megabase sequence intelligence from one self-organising objective</h1>
+    <p class="lede">GenoCortex streams DNA, RNA, or protein sequences through a continuous Chaos Game Representation, grows adaptive predictive prototypes where it is most surprised, and turns a single information-theoretic signal (&minus;log&#8322;&nbsp;P) into pathogenicity-island discovery, strand-aware read classification, Neighbour-Joining phylogenetics, and sequence prediction — with zero pretrained weights, zero alignment, and megabase-per-second ANSI&nbsp;C &amp; Web Worker execution.</p>
     <div class="byline">Md Rafiur Rahman · Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh</div>
     <div class="btns">
-      <a class="btn primary" href="#demos">See it think (3-D)</a>
-      <a class="btn ghost" href="https://github.com/rafi28-png/genocortex" target="_blank" rel="noopener">Code on GitHub</a>
-      <a class="btn ghost" href="paper.pdf" target="_blank" rel="noopener">Read the paper (PDF)</a>
+      <a class="btn emerald" href="#workbench">Launch Live Browser Workbench</a>
+      <a class="btn primary" href="#demos">3-D Cognitive Gallery</a>
+      <a class="btn ghost" href="https://github.com/rafi28-png/genocortex" target="_blank" rel="noopener">Code &amp; CLI on GitHub</a>
+      <a class="btn ghost" href="paper.pdf" target="_blank" rel="noopener">Read the Paper (PDF)</a>
     </div>
     <div class="tags">
-      <span class="tag">NumPy / SciPy only</span>
-      <span class="tag">runs offline · no external API</span>
-      <span class="tag">alignment-free</span>
-      <span class="tag">training-free</span>
-      <span class="tag">interpretable</span>
+      <span class="tag">ANSI C PEP 3118 spatial-grid kernel</span>
+      <span class="tag">100% client-side Web Worker workbench</span>
+      <span class="tag">FASTA · FASTQ(.gz) · BED · BedGraph · Newick</span>
+      <span class="tag">double-strand invariant</span>
+      <span class="tag">Benjamini–Hochberg FDR</span>
     </div>
   </div>
 </header>
 
+<section id="workbench">
+  <div class="wrap">
+    <h2>Live GenoCortex Browser Workbench</h2>
+    <p class="muted" style="max-width:860px">
+      Run the real mathematical engine locally in your browser via a dedicated Web Worker (bit-exact with the C/Python CLI).
+      Upload your own <code>.fasta</code>, <code>.fna</code>, <code>.fastq</code>, or <code>.gz</code> files, paste raw sequences, or fetch live RefSeq genomes straight from NCBI E-utilities — your sequence data never touches a backend server.
+    </p>
+
+    <div class="wb-shell" id="gc-workbench">
+      <div class="wb-topbar">
+        <div class="wb-tabs" role="tablist" aria-label="GenoCortex Workbench Tools">
+          <button class="wb-tab active" role="tab" aria-selected="true" data-wb-tab="scan">1. Island &amp; Anomaly Scanner</button>
+          <button class="wb-tab" role="tab" aria-selected="false" data-wb-tab="tree">2. Neighbour-Joining Phylogeny</button>
+          <button class="wb-tab" role="tab" aria-selected="false" data-wb-tab="classify">3. Strand-Aware Read Classifier</button>
+          <button class="wb-tab" role="tab" aria-selected="false" data-wb-tab="predict">4. Predictor &amp; Generator</button>
+        </div>
+        <div class="wb-status" id="wb-status" data-state="idle">Ready · Web Worker offline-capable</div>
+      </div>
+
+      <!-- ==================== PANEL 1: ISLAND & ANOMALY SCANNER ==================== -->
+      <div class="wb-panel" data-wb-panel="scan">
+        <div class="wb-controls">
+          <div class="wb-field">
+            <label for="wb-scan-alpha">Alphabet</label>
+            <select id="wb-scan-alpha">
+              <option value="DNA" selected>DNA (double-strand)</option>
+              <option value="RNA">RNA</option>
+              <option value="PROTEIN">Protein (20 aa)</option>
+            </select>
+          </div>
+          <div class="wb-field">
+            <label for="wb-scan-order">Context Order (k)</label>
+            <input id="wb-scan-order" type="number" min="2" max="11" value="7">
+          </div>
+          <div class="wb-field">
+            <label for="wb-scan-win">Window (bp)</label>
+            <input id="wb-scan-win" type="number" min="25" max="20000" step="25" value="400">
+          </div>
+          <div class="wb-field">
+            <label for="wb-scan-z">Robust Z Cutoff</label>
+            <input id="wb-scan-z" type="number" min="1.5" max="12" step="0.1" value="3.2">
+          </div>
+          <div class="wb-field">
+            <label for="wb-scan-phred">FASTQ Min Phred Q</label>
+            <input id="wb-scan-phred" type="number" min="0" max="42" value="15">
+          </div>
+        </div>
+
+        <div class="grid g2">
+          <div>
+            <div class="wb-io-bar">
+              <label style="font-size:.83rem; font-weight:600">Query Genome / Contig (FASTA, FASTQ, or .gz)</label>
+              <input id="wb-scan-query-file" type="file" accept=".fa,.fna,.fasta,.fq,.fastq,.gz,.txt">
+            </div>
+            <textarea id="wb-scan-query" class="wb-textarea" placeholder="Paste >FASTA, @FASTQ, or raw sequence here, upload a file, or fetch an NCBI accession below..."></textarea>
+          </div>
+          <div>
+            <div class="wb-io-bar">
+              <label style="font-size:.83rem; font-weight:600">Optional Reference Genome (leave blank for 8-fold self-scan)</label>
+              <input id="wb-scan-ref-file" type="file" accept=".fa,.fna,.fasta,.fq,.fastq,.gz,.txt">
+            </div>
+            <textarea id="wb-scan-ref" class="wb-textarea" placeholder="Optional core/commensal reference FASTA (e.g. host strain without foreign islands). If empty, buffered 8-fold leave-one-segment-out discovery runs automatically."></textarea>
+          </div>
+        </div>
+
+        <div class="wb-actions">
+          <button class="btn emerald" id="wb-scan-run" type="button">Run Genomic Island Scan</button>
+          <button class="btn ghost sm" id="wb-scan-sample-btn" type="button">Load 24 kb Chimeric HGT Sample</button>
+          <div class="wb-ncbi-row">
+            <input id="wb-scan-ncbi-id" type="text" value="NC_045512.2" aria-label="NCBI Accession">
+            <button class="btn ghost sm" id="wb-scan-ncbi-btn" type="button">Fetch Live NCBI Accession</button>
+          </div>
+        </div>
+
+        <div id="wb-scan-results" hidden>
+          <div class="wb-metrics" id="wb-scan-metrics"></div>
+          <div class="wb-canvas-wrap">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.81rem" class="muted">
+              <span>Sliding-Window Robust Surprise Z-Score Profile (shaded spans = called islands)</span>
+              <span>0-based BED coordinates</span>
+            </div>
+            <canvas id="wb-scan-canvas" class="wb-canvas"></canvas>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:9px; margin-bottom:14px">
+            <button class="btn primary sm" id="wb-dl-bed" type="button">Download Islands (.bed)</button>
+            <button class="btn ghost sm" id="wb-dl-bedgraph" type="button">Download Track (.bedgraph)</button>
+            <button class="btn ghost sm" id="wb-dl-scan-tsv" type="button">Download Statistical Report (.tsv)</button>
+          </div>
+
+          <div style="overflow-x:auto; margin-bottom:16px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Contig</th><th>Interval (0-based)</th><th>Length</th><th>Peak Z</th>
+                  <th>Bits/bp (&Delta;base)</th><th>GC (&Delta;host)</th><th>BH q-value</th><th>Call</th>
+                </tr>
+              </thead>
+              <tbody id="wb-scan-tbody"></tbody>
+            </table>
+          </div>
+
+          <div id="wb-scan-3d" class="wb-3d-box"></div>
+        </div>
+      </div>
+
+      <!-- ==================== PANEL 2: NEIGHBOUR-JOINING PHYLOGENY ==================== -->
+      <div class="wb-panel" data-wb-panel="tree" hidden>
+        <div class="wb-controls">
+          <div class="wb-field">
+            <label for="wb-tree-alpha">Alphabet</label>
+            <select id="wb-tree-alpha">
+              <option value="DNA" selected>DNA</option>
+              <option value="RNA">RNA</option>
+              <option value="PROTEIN">Protein</option>
+            </select>
+          </div>
+          <div class="wb-field">
+            <label for="wb-tree-order">Context Order (k)</label>
+            <input id="wb-tree-order" type="number" min="2" max="9" value="6">
+          </div>
+          <div class="wb-field" style="justify-content:flex-end">
+            <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:.87rem; color:var(--ink)">
+              <input id="wb-tree-strand" type="checkbox" checked>
+              Strand-invariant double-strand KL
+            </label>
+          </div>
+        </div>
+
+        <div class="wb-io-bar">
+          <label style="font-size:.83rem; font-weight:600">Multi-FASTA Taxa (or select multiple genome FASTA/.gz files)</label>
+          <input id="wb-tree-file" type="file" multiple accept=".fa,.fna,.fasta,.faa,.gz,.txt">
+        </div>
+        <textarea id="wb-tree-fasta" class="wb-textarea" placeholder="Paste 2 or more >FASTA records here, upload multiple genome files, or fetch live NCBI accessions..."></textarea>
+
+        <div class="wb-actions">
+          <button class="btn emerald" id="wb-tree-run" type="button">Build Neighbour-Joining Tree</button>
+          <button class="btn ghost sm" id="wb-tree-sample-btn" type="button">Load 6-Taxon Multi-FASTA Sample</button>
+          <div class="wb-ncbi-row">
+            <input id="wb-tree-ncbi-ids" type="text" value="NC_045512.2,NC_004718.3,NC_019843.3,NC_006213.1,NC_002645.1" style="min-width:295px" aria-label="NCBI Accessions CSV">
+            <button class="btn ghost sm" id="wb-tree-ncbi-btn" type="button">Fetch 5 Live Coronaviruses (NCBI)</button>
+          </div>
+        </div>
+
+        <div id="wb-tree-results" hidden>
+          <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:18px 0 8px">
+            <strong style="font-size:.9rem">Saitou–Nei Neighbour-Joining Newick Tree</strong>
+            <div style="display:flex; gap:8px">
+              <button class="btn primary sm" id="wb-dl-nwk" type="button">Download Newick (.nwk)</button>
+              <button class="btn ghost sm" id="wb-dl-dist" type="button">Download Distance Matrix (.tsv)</button>
+            </div>
+          </div>
+          <pre><code id="wb-tree-newick"></code></pre>
+          <div id="wb-tree-3d" class="wb-3d-box"></div>
+          <div style="overflow-x:auto"><table id="wb-tree-matrix"></table></div>
+        </div>
+      </div>
+
+      <!-- ==================== PANEL 3: STRAND-AWARE CLASSIFIER ==================== -->
+      <div class="wb-panel" data-wb-panel="classify" hidden>
+        <div class="wb-controls">
+          <div class="wb-field">
+            <label for="wb-clf-alpha">Alphabet</label>
+            <select id="wb-clf-alpha">
+              <option value="DNA" selected>DNA</option>
+              <option value="RNA">RNA</option>
+              <option value="PROTEIN">Protein</option>
+            </select>
+          </div>
+          <div class="wb-field">
+            <label for="wb-clf-order">Context Order (k)</label>
+            <input id="wb-clf-order" type="number" min="2" max="10" value="7">
+          </div>
+          <div class="wb-field">
+            <label for="wb-clf-phred">FASTQ Min Phred Q</label>
+            <input id="wb-clf-phred" type="number" min="0" max="42" value="20">
+          </div>
+          <div class="wb-field" style="justify-content:flex-end">
+            <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:.87rem; color:var(--ink)">
+              <input id="wb-clf-strand" type="checkbox" checked>
+              Score both + and &minus; strands
+            </label>
+          </div>
+        </div>
+
+        <div class="grid g2">
+          <div>
+            <div class="wb-io-bar">
+              <label style="font-size:.83rem; font-weight:600">Reference Panel FASTA (each &gt;ID or file = 1 class)</label>
+              <input id="wb-clf-ref-file" type="file" multiple accept=".fa,.fna,.fasta,.faa,.gz,.txt">
+            </div>
+            <textarea id="wb-clf-refs" class="wb-textarea" placeholder=">Class_A&#10;ACGT...&#10;>Class_B&#10;TGCA..."></textarea>
+          </div>
+          <div>
+            <div class="wb-io-bar">
+              <label style="font-size:.83rem; font-weight:600">Query Reads / Contigs (FASTA, FASTQ, or .gz)</label>
+              <input id="wb-clf-query-file" type="file" multiple accept=".fa,.fna,.fasta,.fq,.fastq,.gz,.txt">
+            </div>
+            <textarea id="wb-clf-queries" class="wb-textarea" placeholder="@read_1&#10;ACGT...&#10;+&#10;IIII..."></textarea>
+          </div>
+        </div>
+
+        <div class="wb-actions">
+          <button class="btn emerald" id="wb-clf-run" type="button">Classify Reads by Minimum Description Length</button>
+          <button class="btn ghost sm" id="wb-clf-sample-btn" type="button">Load Unoriented (+/-) FASTQ Sample</button>
+        </div>
+
+        <div id="wb-clf-results" hidden>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:18px 0 10px">
+            <strong style="font-size:.9rem">Minimum-Description-Length Calls</strong>
+            <button class="btn primary sm" id="wb-dl-clf" type="button">Download Calls (.tsv)</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Query ID</th><th>Length</th><th>Predicted Class</th><th>Strand</th>
+                  <th>Bits/bp</th><th>Posterior</th><th>Runner-up (&Delta;bits)</th>
+                </tr>
+              </thead>
+              <tbody id="wb-clf-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PANEL 4: PREDICTOR & GENERATOR ==================== -->
+      <div class="wb-panel" data-wb-panel="predict" hidden>
+        <div class="wb-controls">
+          <div class="wb-field">
+            <label for="wb-pred-alpha">Alphabet</label>
+            <select id="wb-pred-alpha">
+              <option value="DNA" selected>DNA</option>
+              <option value="RNA">RNA</option>
+              <option value="PROTEIN">Protein</option>
+            </select>
+          </div>
+          <div class="wb-field">
+            <label for="wb-pred-order">Context Order (k)</label>
+            <input id="wb-pred-order" type="number" min="2" max="10" value="7">
+          </div>
+          <div class="wb-field">
+            <label for="wb-pred-prefix">Context Prefix</label>
+            <input id="wb-pred-prefix" type="text" placeholder="e.g. AATTGCAT">
+          </div>
+          <div class="wb-field">
+            <label for="wb-pred-len">Continuation Length</label>
+            <input id="wb-pred-len" type="number" min="1" max="2000" value="120">
+          </div>
+          <div class="wb-field" style="justify-content:flex-end">
+            <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:.87rem; color:var(--ink)">
+              <input id="wb-pred-stochastic" type="checkbox">
+              Stochastic sampling
+            </label>
+          </div>
+        </div>
+
+        <textarea id="wb-pred-train" class="wb-textarea" placeholder="Paste FASTA or raw sequence to learn online..."></textarea>
+        <div class="wb-actions">
+          <button class="btn emerald" id="wb-pred-run" type="button">Learn &amp; Predict Next Symbols</button>
+          <button class="btn ghost sm" id="wb-pred-sample-btn" type="button">Load Structured Motif Sequence</button>
+        </div>
+
+        <div id="wb-pred-results" hidden>
+          <div class="wb-metrics" id="wb-pred-metrics"></div>
+          <div class="grid g2">
+            <div class="card" style="background:#0e1013">
+              <h3>Next-Symbol Distribution <code>P(s | prefix)</code></h3>
+              <div id="wb-pred-bars" style="margin-top:12px"></div>
+            </div>
+            <div class="card" style="background:#0e1013">
+              <h3>Generated Continuation</h3>
+              <pre style="margin:10px 0 0; white-space:pre-wrap; word-break:break-all"><code id="wb-pred-seq"></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="idea">
   <div class="wrap">
-    <h2>The idea</h2>
-    <p class="muted" style="max-width:820px">
-      The model streams a sequence through a <strong>Chaos Game Representation</strong>, which turns the recent
-      context into a point in the plane. It keeps a growing set of predictive <strong>prototypes</strong> in that
-      space and adds a new one wherever its own next-symbol prediction is weakest. Its only objective is to
-      minimise cumulative <strong>surprise</strong> (&minus;log&#8322; P of what actually comes next), which equals
-      the sequence's description length under the model. The four capabilities are all read-outs of that one number.
+    <h2>The architecture</h2>
+    <p class="muted" style="max-width:840px">
+      GenoCortex maps a sequence through a <strong>Chaos Game Representation</strong>, turning variable-length
+      preceding context into coordinates in <code>[0, 1]²</code>. An adaptive set of predictive
+      <strong>prototypes</strong> indexed by an exact <code>32×32</code> spatial grid grows wherever predictive
+      surprise (&minus;log&#8322;&nbsp;P) spikes. All four sequence capabilities are direct read-outs of that
+      single description-length objective:
     </p>
     <div class="grid g4" style="margin-top:26px">
-      <div class="card"><h3>Predict</h3><p>The next-symbol distribution <code>P(next | context)</code>.</p></div>
-      <div class="card"><h3>Detect</h3><p>Mutations and foreign DNA show up as local rises in surprise, with robust z-scores and p-values.</p></div>
-      <div class="card"><h3>Classify</h3><p>Assign a query to the model that is <span class="k">least surprised</span> by it.</p></div>
-      <div class="card"><h3>Discover</h3><p>Phylogeny from a symmetric cross-entropy between two sequences' learned models.</p></div>
+      <div class="card"><h3>Predict</h3><p>Gaussian-blended next-symbol distribution <code>P(next | CGR context)</code> with automatic variable-order smoothing.</p></div>
+      <div class="card"><h3>Detect</h3><p>Pathogenicity islands, prophages &amp; mutations emerge as robust z-score peaks with Benjamini–Hochberg FDR control.</p></div>
+      <div class="card"><h3>Classify</h3><p>Assign unoriented FASTA/FASTQ reads to the reference cortex that is <span class="k">least surprised</span> on either <code>+</code> or <code>&minus;</code> strand.</p></div>
+      <div class="card"><h3>Discover</h3><p>Strand-invariant symmetric cross-entropy distance feeds pure-NumPy Saitou–Nei Neighbour-Joining phylogenetics.</p></div>
     </div>
   </div>
 </section>
 
 <section id="demos">
   <div class="wrap">
-    <h2>See it think — interactive 3-D</h2>
-    <p class="muted" style="max-width:820px">Because the model lives in a 2-D geometry, its internal state can be
-      shown directly. These open interactive, rotatable 3-D views in a new tab (each is a self-contained page).</p>
+    <h2>Pre-rendered 3-D Cognitive Maps</h2>
+    <p class="muted" style="max-width:820px">Self-contained interactive 3-D scenes showing how the cortex organises real viral and synthetic genomes in Chaos Game space.</p>
     <div class="grid g2" style="margin-top:24px">
       <a class="demo" href="i/cognitive_map.html" target="_blank" rel="noopener">
         <img src="img/cognitive_map.png" loading="lazy" alt="Surprise landscape of a learned genome">
@@ -157,16 +529,17 @@
 <section id="results">
   <div class="wrap">
     <h2>Results — reported honestly</h2>
-    <p class="muted" style="max-width:820px">Every number is reproducible from the open-source scripts (fixed seeds; real data cached after first download). The point is not to beat every specialised tool, but that one model does all of these together. Where it loses, that is stated too.</p>
+    <p class="muted" style="max-width:820px">Every number is reproducible from the open-source scripts (fixed seeds; real RefSeq genomes cached after first download). Where specialised tools win, that is stated plainly.</p>
     <div style="margin-top:22px; overflow-x:auto">
     <table>
-      <thead><tr><th>Task</th><th>FPC</th><th>Baselines</th><th>Outcome</th></tr></thead>
+      <thead><tr><th>Task</th><th>GenoCortex</th><th>Baselines</th><th>Outcome</th></tr></thead>
       <tbody>
+        <tr><td>Megabase HGT &amp; pathogenicity islands (<em>E. coli</em> O157:H7 5.50 Mb vs K-12 4.64 Mb)</td><td class="fpc">LEE + Stx1/Stx2 phages</td><td>Double-strand ANSI C kernel (&gt;1 Mb/s)</td><td>recovers major O-islands &amp; prophages in seconds; immune to core inversions</td></tr>
         <tr><td>Phylogeny — 25 synthetic trees (Pearson r)</td><td class="fpc">0.93</td><td>FFP 0.93 · NCCD 0.93 · NRC 0.92 · Mash 0.91 · k-mer cos 0.78</td><td>statistically tied with FFP/Mash/NRC/NCCD; beats k-mer cosine</td></tr>
         <tr><td>Phylogeny — 17 real mitogenomes (Robinson–Foulds, lower better)</td><td class="fpc">0.43</td><td>NRC 0.36 · NCCD/FFP/Mash 0.43 · k-mer cos 0.71</td><td>ties the standard tools; slightly behind NRC</td></tr>
-        <tr><td>Short-read classification (150 bp)</td><td class="fpc">100%</td><td>k-mer+1NN 97% · logistic 94%</td><td>robust as reads shorten</td></tr>
-        <tr><td>Compression (bits/symbol)</td><td class="fpc">beats gzip</td><td>near best hand-tuned Markov-k</td><td>competitive, no k to choose</td></tr>
-        <tr><td>Foreign-insert detection (ROC-AUC)</td><td class="fpc">~1.0</td><td>8-mer novelty ~1.0</td><td>parity; adds per-position surprise</td></tr>
+        <tr><td>Short-read classification (150 bp, unoriented +/&minus;)</td><td class="fpc">100%</td><td>k-mer+1NN 97% · logistic 94%</td><td>calls both taxon and strand (+/&minus;) accurately</td></tr>
+        <tr><td>Compression (bits/symbol)</td><td class="fpc">beats gzip</td><td>near best hand-tuned Markov-k</td><td>competitive, no fixed k-mer table explosion</td></tr>
+        <tr><td>Foreign-insert detection (ROC-AUC)</td><td class="fpc">~1.0</td><td>8-mer novelty ~1.0</td><td>parity; adds per-position surprise + BED/BedGraph</td></tr>
         <tr><td>Deep-divergence viral families (purity)</td><td>0.82</td><td class="fpc" style="color:var(--warn)">FFP 0.93</td><td>FFP is more accurate here</td></tr>
       </tbody>
     </table>
@@ -182,28 +555,33 @@
 
 <section id="run">
   <div class="wrap">
-    <h2>Run it yourself</h2>
-    <p class="muted">Pure NumPy/SciPy core. Python ≥ 3.10.</p>
+    <h2>Production CLI &amp; Python API</h2>
+    <p class="muted">ANSI C spatial-grid extension compiles automatically when a C compiler is present (falls back cleanly to pure NumPy/SciPy). Python ≥ 3.10.</p>
     <pre><code>git clone https://github.com/rafi28-png/genocortex.git
 cd genocortex
 pip install -e .[all]
 
-python -c "from fpc import FractalPredictiveCortex, DNA, datasets; \
-m=FractalPredictiveCortex(DNA, order=8); \
-print(m.fit(DNA.encode(datasets.markov_sequence(20000, DNA, seed=1))))"
+# 1. Scan a 5.5 Mb pathogenic chromosome against a commensal reference -> BED + BedGraph
+genocortex scan O157_Sakai.fna.gz --ref K12_MG1655.fna.gz --bed islands.bed --bedgraph surprise.bedgraph
 
-python examples/make_visuals.py      # regenerate the interactive 3-D maps
-python run_all.py --real             # reproduce every result and figure</code></pre>
+# 2. Train a zero-pickle multi-class panel &amp; classify unoriented FASTQ.gz reads with Phred masking
+genocortex train --by-file refs/*.fna -o panel.fpc.npz
+genocortex classify reads.fastq.gz --model panel.fpc.npz --min-phred 20 -o calls.tsv
+
+# 3. Build a strand-invariant Neighbour-Joining Newick tree &amp; distance matrix
+genocortex tree genomes/*.fna -o phylogeny.nwk --matrix distances.tsv
+
+# 4. Run the real 10.14 Mb E. coli K-12 vs O157:H7 pathogenicity-island study
+python examples/bacterial_islands.py</code></pre>
     <div class="callout" style="margin-top:20px">
-      The engine is <strong>alphabet-agnostic</strong>: the same code runs on DNA, RNA, or protein by
-      swapping the alphabet. It depends on no external service and runs fully offline.
+      <strong>Zero-pickle model persistence:</strong> <code>.fpc.npz</code> archives store only typed IEEE-754 arrays and UTF-8 JSON metadata (loaded with <code>allow_pickle=False</code>), making trained cortices safe to share across labs and pipelines.
     </div>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <div><strong>GenoCortex — the Fractal Predictive Cortex</strong></div>
+    <div><strong>GenoCortex v1.0 — the Fractal Predictive Cortex</strong></div>
     <div style="margin-top:6px">Md Rafiur Rahman, Department of Biochemistry and Biotechnology, North South University, Dhaka, Bangladesh.</div>
     <div style="margin-top:10px">
       <a href="https://github.com/rafi28-png/genocortex" target="_blank" rel="noopener">GitHub</a> ·
@@ -213,5 +591,6 @@ python run_all.py --real             # reproduce every result and figure</code><
   </div>
 </footer>
 
+<script type="module" src="./workbench.js"></script>
 </body>
 </html>

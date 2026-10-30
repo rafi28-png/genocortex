@@ -25,6 +25,7 @@ REAL = [
     ("28-genome, 5-family study + figs 7,8", [sys.executable, "examples/big_study.py"]),
     ("40 real proteins + fig 10", [sys.executable, "examples/protein_study.py"]),
     ("Robinson-Foulds on mitogenomes + fig 11", [sys.executable, "benchmarks/rf_benchmark.py"]),
+    ("10.14 Mb E. coli K-12 vs O157:H7 Sakai pathogenicity islands", [sys.executable, "examples/bacterial_islands.py"]),
 ]
 
 

@@ -57,14 +57,33 @@ h2, h3 { page-break-after: avoid; }
 """
 
 
+import shutil
+
+
 def find_chromium():
-    # 1) Playwright bundled chromium
-    hits = glob.glob(os.path.join(os.path.expanduser("~"), "AppData", "Local",
-                                  "ms-playwright", "chromium-*", "chrome-win", "chrome.exe"))
-    if hits:
-        return sorted(hits)[-1]
-    # 2) common Chrome / Edge locations
+    # 1) System binaries on PATH (Linux / macOS / Windows)
+    for exe in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "chrome", "msedge"):
+        found = shutil.which(exe)
+        if found:
+            return found
+
+    # 2) Playwright bundled chromium across Linux, macOS, and Windows
+    home = os.path.expanduser("~")
+    patterns = [
+        os.path.join(home, ".cache", "ms-playwright", "chromium-*", "chrome-linux", "chrome"),
+        os.path.join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"),
+        os.path.join(home, "AppData", "Local", "ms-playwright", "chromium-*", "chrome-win", "chrome.exe"),
+    ]
+    for pat in patterns:
+        hits = glob.glob(pat)
+        if hits:
+            return sorted(hits)[-1]
+
+    # 3) Common macOS / Windows install paths
     for cand in [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -76,7 +95,10 @@ def find_chromium():
 
 
 def to_file_url(path):
-    return "file:///" + os.path.abspath(path).replace("\\", "/")
+    abspath = os.path.abspath(path).replace("\\", "/")
+    if abspath.startswith("/"):
+        return "file://" + abspath
+    return "file:///" + abspath
 
 
 def build_html():
