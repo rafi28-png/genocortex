@@ -484,8 +484,16 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
     Py_BEGIN_ALLOW_THREADS
     const double inv_2sigma2 = 1.0 / (2.0 * sigma * sigma);
     const double decay_factor = (prune_interval > 0) ? pow(usage_decay, (double)prune_interval) : 1.0;
-    const int headroom = (prune_interval > 0) ? ((max_prototypes / 4 > 16) ? (max_prototypes / 4) : 16) : 0;
-    const int growth_cap = max_prototypes + headroom;
+    const int max_evict = (max_prototypes / 4 > 1) ? (max_prototypes / 4) : 1;
+    int eff_cap = max_prototypes;
+    if (m >= max_prototypes && prune_interval > 0) {
+        int stale_init = 0;
+        for (int i = 0; i < m; ++i) {
+            if (usage[i] < 0.005) stale_init += 1;
+        }
+        int evict_init = (stale_init < max_evict) ? stale_init : max_evict;
+        eff_cap = max_prototypes + evict_init;
+    }
 
     for (Py_ssize_t t = 0; t < T; ++t) {
         int64_t s = ids[t];
@@ -573,7 +581,7 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
                     high_surp = (b > surp_mean + 2.0 * std_v);
                 }
                 int shocked = surprise_growth && high_surp && (nearest_dist > 0.5 * dist_threshold);
-                int can_grow = (m < growth_cap);
+                int can_grow = (m < eff_cap);
 
                 if (empty || ((far || shocked) && can_grow)) {
                     if (m < cap) {
@@ -614,11 +622,22 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
                     m = prune_prototypes(X, N, usage, m, max_prototypes, a);
                     grid_rebuild(&grid, X, m);
                 }
+                if (m >= max_prototypes) {
+                    int stale_cnt = 0;
+                    for (int i = 0; i < m; ++i) {
+                        if (usage[i] < 0.005) stale_cnt += 1;
+                    }
+                    int evict = (stale_cnt < max_evict) ? stale_cnt : max_evict;
+                    eff_cap = max_prototypes + evict;
+                } else {
+                    eff_cap = max_prototypes;
+                }
             }
         }
     }
     if (update && m > max_prototypes) {
         m = prune_prototypes(X, N, usage, m, max_prototypes, a);
+        grid_rebuild(&grid, X, m);
     }
     Py_END_ALLOW_THREADS
 

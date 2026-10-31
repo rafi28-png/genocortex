@@ -110,6 +110,10 @@ def main():
     names = list(seqs)
     from collections import Counter
     counts = Counter(fam.values())
+    if len(names) < 6 or len(counts) < 2:
+        raise RuntimeError(
+            f"Too few viral genomes loaded ({len(names)}); check network or data/viruses cache."
+        )
     print(f"  loaded {len(names)} genomes across families: {dict(counts)}")
 
     # ---------- 2. unsupervised phylogeny (all genomes) ----------

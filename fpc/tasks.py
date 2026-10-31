@@ -403,7 +403,12 @@ class FPCClassifier:
 
 
 def classification_accuracy(pred, true) -> float:
-    pred = list(pred); true = list(true)
+    pred = list(pred)
+    true = list(true)
+    if len(pred) != len(true):
+        raise ValueError(f"pred length ({len(pred)}) != true length ({len(true)})")
+    if not pred:
+        return float("nan")
     return float(np.mean([p == t for p, t in zip(pred, true)]))
 
 
@@ -525,7 +530,19 @@ def cluster(D: np.ndarray, n_clusters: int, method: str = "average") -> np.ndarr
     """Hierarchical clustering of a distance matrix into ``n_clusters`` groups."""
     if not _HAVE_SCIPY_CLUSTER:  # pragma: no cover
         raise RuntimeError("scipy is required for cluster()")
+    n_clusters = int(n_clusters)
+    if n_clusters < 1:
+        raise ValueError(f"n_clusters must be >= 1, got {n_clusters}")
+    D = np.asarray(D, dtype=np.float64)
+    if D.ndim != 2 or D.shape[0] != D.shape[1]:
+        raise ValueError(f"Distance matrix must be square 2-D, got shape {D.shape}")
+    if not np.all(np.isfinite(D)):
+        raise ValueError("Distance matrix contains non-finite (NaN or Inf) values")
     n = D.shape[0]
+    if n == 0:
+        return np.empty(0, dtype=np.int32)
+    if n == 1:
+        return np.ones(1, dtype=np.int32)
     iu = np.triu_indices(n, k=1)
     condensed = D[iu]
     Z = linkage(condensed, method=method)
@@ -536,6 +553,10 @@ def clustering_purity(pred, true) -> float:
     """Fraction of items in the majority true-class of their predicted cluster."""
     pred = np.asarray(pred)
     true = np.asarray(true)
+    if len(pred) != len(true):
+        raise ValueError(f"pred length ({len(pred)}) != true length ({len(true)})")
+    if len(true) == 0:
+        return float("nan")
     total = 0
     for c in np.unique(pred):
         members = true[pred == c]

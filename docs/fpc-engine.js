@@ -710,7 +710,8 @@ export class FractalPredictiveCortex {
       throw new RangeError(`usageDecay must be in (0, 1], got ${options.usageDecay}`);
     }
 
-    this._cap = Math.max(64, Math.min(this._growthCap() + 1, 2048));
+    const maxEvictInit = Math.max(1, Math.floor(this.maxPrototypes / 4));
+    this._cap = Math.max(64, Math.min(this.maxPrototypes + maxEvictInit + 1, 2048));
     this._m = 0;
     this.X = new Float64Array(this._cap * 2);
     this.N = new Float64Array(this._cap * this.a);
@@ -729,13 +730,6 @@ export class FractalPredictiveCortex {
     return this._m;
   }
 
-  _growthCap() {
-    if (this.pruneInterval > 0) {
-      return this.maxPrototypes + Math.max(16, Math.floor(this.maxPrototypes / 4));
-    }
-    return this.maxPrototypes;
-  }
-
   _ensureCapacity(need) {
     if (need <= this._cap) return;
     const newCap = Math.max(64, this._cap * 2, need);
@@ -752,17 +746,23 @@ export class FractalPredictiveCortex {
     this._grid.ensureCapacity(newCap);
   }
 
-  _prune() {
-    if (this._m <= this.maxPrototypes) return;
+  _prune(targetM = null) {
+    const limit = targetM === null ? this.maxPrototypes : Math.floor(targetM);
+    if (this._m <= limit) return;
+    if (limit <= 0) {
+      this._m = 0;
+      this._grid.clear();
+      return;
+    }
     const m = this._m;
     const order = Array.from({ length: m }, (_, idx) => idx);
-    // Exact match to np.argsort(usage[:m], kind="mergesort")[::-1][:max_prototypes]
+    // Exact match to np.argsort(usage[:m], kind="mergesort")[::-1][:limit]
     order.sort((ia, ib) => {
       const diff = this.usage[ib] - this.usage[ia];
       if (diff !== 0) return diff;
       return ib - ia;
     });
-    const keep = order.slice(0, this.maxPrototypes);
+    const keep = order.slice(0, limit);
     keep.sort((ia, ib) => ia - ib);
     const k = keep.length;
     const a = this.a;
@@ -913,8 +913,8 @@ export class FractalPredictiveCortex {
     bits.fill(NaN);
     if (T === 0) return new SurpriseTrack(bits);
 
-    const growthCap = this._growthCap();
-    this._ensureCapacity(Math.max(64, growthCap + 1, this._m + 1));
+    const maxEvict = Math.max(1, Math.floor(this.maxPrototypes / 4));
+    this._ensureCapacity(Math.max(64, this.maxPrototypes + maxEvict + 1, this._m + 1));
     const C = this.embedding.contextPoints(ids);
     const a = this.a;
     const idxBuf = new Int32Array(Math.max(1, this.nNeighbors));
@@ -922,6 +922,14 @@ export class FractalPredictiveCortex {
     const pBuf = new Float64Array(a);
     const decayBlock =
       this.pruneInterval > 0 ? Math.pow(this.usageDecay, this.pruneInterval) : 1.0;
+    let effCap = this.maxPrototypes;
+    if (this._m >= this.maxPrototypes && this.pruneInterval > 0) {
+      let staleInit = 0;
+      for (let i = 0; i < this._m; i++) {
+        if (this.usage[i] < 0.005) staleInit++;
+      }
+      effCap = this.maxPrototypes + Math.min(staleInit, maxEvict);
+    }
 
     for (let t = 0; t < T; t++) {
       const s = ids[t];
@@ -949,7 +957,7 @@ export class FractalPredictiveCortex {
             highSurp = b > this._surpMean + 2.0 * Math.sqrt(variance);
           }
           const shocked = highSurp && nearestDist > 0.5 * this.distThreshold;
-          const canGrow = this._m < growthCap;
+          const canGrow = this._m < effCap;
 
           if (empty || ((far || shocked) && canGrow)) {
             this._ensureCapacity(this._m + 1);
@@ -980,8 +988,21 @@ export class FractalPredictiveCortex {
       if (update) {
         this._steps++;
         if (this.pruneInterval > 0 && this._steps % this.pruneInterval === 0) {
-          for (let i = 0; i < this._m; i++) this.usage[i] *= decayBlock;
-          this._prune();
+          for (let i = 0; i < this._m; i++) {
+            this.usage[i] *= decayBlock;
+          }
+          if (this._m > this.maxPrototypes) {
+            this._prune(this.maxPrototypes);
+          }
+          if (this._m >= this.maxPrototypes) {
+            let staleCnt = 0;
+            for (let i = 0; i < this._m; i++) {
+              if (this.usage[i] < 0.005) staleCnt++;
+            }
+            effCap = this.maxPrototypes + Math.min(staleCnt, maxEvict);
+          } else {
+            effCap = this.maxPrototypes;
+          }
         }
       }
 
@@ -990,7 +1011,7 @@ export class FractalPredictiveCortex {
       }
     }
     if (update && this._m > this.maxPrototypes) {
-      this._prune();
+      this._prune(this.maxPrototypes);
     }
     return new SurpriseTrack(bits);
   }

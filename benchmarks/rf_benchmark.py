@@ -114,10 +114,12 @@ def main():
                 print(f"   skip {label}: short ({len(s)})")
         except Exception as e:
             print(f"   skip {label} ({sp}): {str(e)[:50]}")
+    if len(labels) < 6:
+        raise RuntimeError(
+            f"Too few mitogenomes loaded ({len(labels)}); check network or data/mito cache."
+        )
     print(f"  loaded {len(labels)} mitogenomes "
           f"({min(len(s) for s in seqs.values())}-{max(len(s) for s in seqs.values())} bp)")
-    if len(labels) < 6:
-        print("  too few genomes; aborting."); return
 
     seq_list = [seqs[l] for l in labels]
 

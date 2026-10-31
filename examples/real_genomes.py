@@ -68,6 +68,10 @@ def main():
         except Exception as e:
             print(f"    !! skipping {name}: {e}")
     names = list(seqs)
+    if "SARS-CoV-2" not in seqs or len(names) < 4:
+        raise RuntimeError(
+            f"Too few coronavirus genomes loaded ({len(names)}); check network or data/corona cache."
+        )
     print(f"    have {len(names)} genomes: " +
           ", ".join(f"{n}({len(seqs[n])}bp)" for n in names))
 

@@ -202,11 +202,15 @@ class FractalPredictiveCortex:
     def n_prototypes(self) -> int:
         return self._m
 
-    def _prune(self) -> None:
-        """Keep the ``max_prototypes`` most-used cells; drop the rest."""
-        if self._m <= self.max_prototypes:
+    def _prune(self, target_m: int | None = None) -> None:
+        """Keep the ``target_m`` (default ``max_prototypes``) most-used cells; drop the rest."""
+        limit = self.max_prototypes if target_m is None else int(target_m)
+        if self._m <= limit:
             return
-        keep = np.argsort(self.usage[: self._m], kind="mergesort")[::-1][: self.max_prototypes]
+        if limit <= 0:
+            self._m = 0
+            return
+        keep = np.argsort(self.usage[: self._m], kind="mergesort")[::-1][:limit]
         keep.sort()
         k = len(keep)
         self.X[:k] = self.X[keep]
@@ -395,18 +399,14 @@ class FractalPredictiveCortex:
         bits[canonical] = -np.log2(probs)
         return SurpriseTrack(bits)
 
-    def _growth_cap(self) -> int:
-        if self.prune_interval > 0:
-            return self.max_prototypes + max(16, self.max_prototypes // 4)
-        return self.max_prototypes
-
     def _stream(self, ids: np.ndarray, update: bool) -> SurpriseTrack:
         ids_c = np.ascontiguousarray(ids, dtype=np.int64)
         if len(ids_c) == 0:
             return SurpriseTrack(np.empty(0, dtype=np.float64))
 
         if self.use_fast and HAS_FAST_KERNEL:
-            need_cap = max(64, self._growth_cap() + 1, self._m + 1)
+            max_evict = max(1, self.max_prototypes // 4)
+            need_cap = max(64, self.max_prototypes + max_evict + 1, self._m + 1)
             self._ensure_capacity(need_cap)
             C = np.ascontiguousarray(
                 self.embedding.context_points(ids_c, use_fast=True), dtype=np.float64
@@ -449,6 +449,12 @@ class FractalPredictiveCortex:
         a = self.a
         C = self.embedding.context_points(ids_c, use_fast=False)
         bits = np.full(len(ids_c), np.nan, dtype=np.float64)
+        max_evict = max(1, self.max_prototypes // 4)
+        if self._m >= self.max_prototypes and self.prune_interval > 0:
+            stale_cnt = int(np.sum(self.usage[: self._m] < 0.005))
+            eff_cap = self.max_prototypes + min(stale_cnt, max_evict)
+        else:
+            eff_cap = self.max_prototypes
 
         for t in range(len(ids_c)):
             s = int(ids_c[t])
@@ -462,28 +468,35 @@ class FractalPredictiveCortex:
                 if update:
                     self._update_surprise_stats(b)
                     self.global_counts[s] += 1.0
-                    self._learn(c, s, nn, dmin, b)
+                    self._learn(c, s, nn, dmin, b, eff_cap)
             # wildcard symbols advance the trajectory but are not scored/learned.
 
             if update:
                 self._steps += 1
                 if self.prune_interval > 0 and self._steps % self.prune_interval == 0:
                     self.usage[: self._m] *= (self.usage_decay ** self.prune_interval)
-                    self._prune()
+                    if self._m > self.max_prototypes:
+                        self._prune(self.max_prototypes)
+                    if self._m >= self.max_prototypes:
+                        stale_cnt = int(np.sum(self.usage[: self._m] < 0.005))
+                        eff_cap = self.max_prototypes + min(stale_cnt, max_evict)
+                    else:
+                        eff_cap = self.max_prototypes
 
         if update and self._m > self.max_prototypes:
-            self._prune()
+            self._prune(self.max_prototypes)
 
         return SurpriseTrack(bits)
 
     def _learn(self, c: np.ndarray, symbol: int, nearest: int,
-               nearest_dist: float, bits: float) -> None:
+               nearest_dist: float, bits: float, eff_cap: int | None = None) -> None:
         """Reinforce, adapt, and (maybe) grow a prototype."""
         empty = self._m == 0
         far = nearest_dist > self.dist_threshold
         shocked = self.surprise_growth and self._surprise_is_high(bits) \
             and nearest_dist > 0.5 * self.dist_threshold
-        can_grow = self._m < self._growth_cap()
+        limit = self.max_prototypes if eff_cap is None else eff_cap
+        can_grow = self._m < limit
 
         if empty or ((far or shocked) and can_grow):
             self._add_prototype(c, symbol)

@@ -1008,6 +1008,20 @@ def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_pa
     with pytest.raises(ValueError, match="0 canonical"):
         islands.scan_against_reference([("ref", "NNNNNNNN")], [("q", "ACGT" * 500)])
 
+    # 6. classification_accuracy, cluster, and clustering_purity validation
+    with pytest.raises(ValueError, match="pred length"):
+        tasks.classification_accuracy(["A"], ["A", "B"])
+    assert np.isnan(tasks.classification_accuracy([], []))
+    with pytest.raises(ValueError, match="pred length"):
+        tasks.clustering_purity([1], [1, 2])
+    assert np.isnan(tasks.clustering_purity([], []))
+    assert list(tasks.cluster(np.zeros((0, 0)), 2)) == []
+    assert list(tasks.cluster([[0.0]], 2)) == [1]
+    with pytest.raises(ValueError, match="n_clusters"):
+        tasks.cluster(np.zeros((2, 2)), 0)
+    with pytest.raises(ValueError, match="non-finite"):
+        tasks.cluster(np.array([[0.0, np.nan], [np.nan, 0.0]]), 2)
+
 
 def test_js_engine_and_worker_edge_case_validations():
     node_bin = _find_node()

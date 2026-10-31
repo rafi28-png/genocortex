@@ -69,10 +69,10 @@ def main():
                 print(f"   skip {fam} / {sp}: {str(e)[:50]}")
         print(f"   {fam}: {got} sequences")
     n = len(seqs)
+    if n < 8 or len(set(labels)) < 2:
+        raise RuntimeError(f"Too few proteins fetched ({n}); check network or data/proteins cache.")
     print(f"  total {n} real proteins across {len(set(labels))} families "
           f"(lengths {min(len(s) for s in seqs)}-{max(len(s) for s in seqs)} aa)")
-    if n < 8:
-        print("  too few proteins fetched; aborting."); return
 
     # ---- classification (family) ----
     from collections import defaultdict
