@@ -105,14 +105,38 @@ async function readUploadedFiles(fileList, labelByFilename = false) {
     }
     text = text.trim();
     if (!text) continue;
-    if (labelByFilename && text.startsWith(">")) {
+    if (labelByFilename && (text.startsWith(">") || text.startsWith("@"))) {
       const stem = file.name.replace(/\.gz$/i, "").replace(/\.[^.]+$/, "");
-      // Concatenate contigs in file under single >stem header for multi-file panels
-      const seqBody = text
-        .split(/\r?\n/)
-        .filter((l) => !l.trim().startsWith(">"))
-        .join("");
-      chunks.push(`>${stem}\n${seqBody}`);
+      if (text.startsWith(">")) {
+        // Concatenate contigs in FASTA file under single >stem header for multi-file panels
+        const seqBody = text
+          .split(/\r?\n/)
+          .filter((l) => !l.trim().startsWith(">"))
+          .join("");
+        chunks.push(`>${stem}\n${seqBody}`);
+      } else {
+        // Concatenate reads in FASTQ file under single >stem header for multi-file panels
+        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const seqParts = [];
+        let li = 0;
+        while (li < lines.length) {
+          if (!lines[li].startsWith("@")) break;
+          li++;
+          let recSeqLen = 0;
+          while (li < lines.length && !lines[li].startsWith("+")) {
+            seqParts.push(lines[li]);
+            recSeqLen += lines[li].length;
+            li++;
+          }
+          if (li < lines.length && lines[li].startsWith("+")) li++;
+          let qualLen = 0;
+          while (li < lines.length && qualLen < recSeqLen) {
+            qualLen += lines[li].length;
+            li++;
+          }
+        }
+        chunks.push(`>${stem}\n${seqParts.join("")}`);
+      }
     } else {
       chunks.push(text);
     }

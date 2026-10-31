@@ -642,4 +642,235 @@ def test_cognitive_terrain_context_alignment_and_protein_scan(tmp_path):
     assert out["nProtIslands"] == 2
 
 
+# --------------------------------------------------------------------- #
+#  9. Exhaustive mathematical, logical & buffer-safety regression tests #
+# --------------------------------------------------------------------- #
+def test_all_wildcard_distance_matrix_and_nan_nj_rejected():
+    with pytest.raises(ValueError, match="0 canonical"):
+        tasks.distance_matrix(["ACGTACGT" * 10, "NNNNNNNN" * 10, "TTTTAAAA" * 10], DNA, order=4)
+
+    with pytest.raises(ValueError, match="non-finite"):
+        phylo.neighbor_joining(
+            np.array([[0.0, np.nan, 1.0], [np.nan, 0.0, 1.0], [1.0, 1.0, 0.0]]),
+            ["A", "B", "C"],
+        )
+
+    node_bin = _find_node()
+    if node_bin:
+        js_check = """
+        import * as fpc from "./docs/fpc-engine.js";
+        let dmErr = false, njErr = false;
+        try {
+          fpc.distanceMatrix(["ACGTACGT".repeat(10), "NNNNNNNN".repeat(10)], { alphabet: fpc.DNA, order: 4 });
+        } catch (e) { dmErr = true; }
+        try {
+          fpc.neighborJoining([[0, NaN, 1], [NaN, 0, 1], [1, 1, 0]], ["A", "B", "C"]);
+        } catch (e) { njErr = true; }
+        process.stdout.write(JSON.stringify({ dmErr, njErr }));
+        """
+        proc = subprocess.run(
+            [node_bin, "--input-type=module", "-e", js_check],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        res = json.loads(proc.stdout)
+        assert res["dmErr"] is True and res["njErr"] is True
+
+
+def test_mds_embedding_shapes_for_small_n_and_nan_rejection():
+    assert tasks.mds_embedding(np.zeros((0, 0)), dims=3).shape == (0, 3)
+    assert tasks.mds_embedding(np.zeros((1, 1)), dims=3).shape == (1, 3)
+    coords2 = tasks.mds_embedding(np.array([[0.0, 2.0], [2.0, 0.0]]), dims=3)
+    assert coords2.shape == (2, 3)
+    assert np.linalg.norm(coords2[0] - coords2[1]) == pytest.approx(2.0)
+    assert np.allclose(coords2[:, 2], 0.0)
+    with pytest.raises(ValueError, match="non-finite"):
+        tasks.mds_embedding(np.array([[0.0, np.nan], [np.nan, 0.0]]), dims=3)
+
+
+def test_cognitive_map_html_all_wildcard_query_finite_prototypes(tmp_path):
+    import warnings
+    from viz.viz3d import cognitive_map_html
+
+    cx = FractalPredictiveCortex(DNA, order=4)
+    cx.fit(DNA.encode("ACGTACGT" * 20))
+    out_html = tmp_path / "all_n_cog.html"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        cognitive_map_html(cx, DNA.encode("NNNNNN"), str(out_html), grid=16)
+    html_text = out_html.read_text(encoding="utf-8")
+    assert "predicts " in html_text
+    assert "0.08" in html_text
+
+
+def test_equidistant_prototype_tie_breaking_parity():
+    def build_sym(use_fast: bool) -> FractalPredictiveCortex:
+        c = FractalPredictiveCortex(DNA, order=2, n_neighbors=1, use_fast=use_fast)
+        c._ensure_capacity(8)
+        c._m = 4
+        c.X[:4] = [[0.0, 0.0], [1.0, 1.0], [0.75, 0.25], [0.25, 0.75]]
+        c.N[:4] = [[1, 1, 1, 1], [1, 1, 1, 1], [50, 0, 0, 0], [0, 0, 0, 50]]
+        c.usage[:4] = [1.0, 1.0, 1.0, 1.0]
+        return c
+
+    c_fast = build_sym(True)
+    c_slow = build_sym(False)
+    p_slow, nn_slow, _ = c_slow.predict_dist([0.5, 0.5])
+    assert nn_slow == 2
+    assert p_slow[0] > 0.85
+
+    q = DNA.encode("A")
+    b_fast = float(c_fast.score(q).bits[0])
+    b_slow_score = float(c_slow.score(q).bits[0])
+    b_slow_stream = float(c_slow._stream(q, update=False).bits[0])
+    assert abs(b_fast - b_slow_score) < 1e-12
+    assert abs(b_fast - b_slow_stream) < 1e-12
+
+    node_bin = _find_node()
+    if node_bin:
+        js_sym = """
+        import * as fpc from "./docs/fpc-engine.js";
+        const c = new fpc.FractalPredictiveCortex(fpc.DNA, { order: 2, nNeighbors: 1 });
+        c._ensureCapacity(8);
+        c._m = 4;
+        c.X.set([0.0, 0.0, 1.0, 1.0, 0.75, 0.25, 0.25, 0.75], 0);
+        c.N.set([1,1,1,1, 1,1,1,1, 50,0,0,0, 0,0,0,50], 0);
+        c.usage.set([1, 1, 1, 1], 0);
+        c._grid.rebuild(c.X, 4);
+        const pd = c.predictDist(0.5, 0.5);
+        const b = c.score(fpc.DNA.encode("A")).bits[0];
+        process.stdout.write(JSON.stringify({ nearest: pd.nearest, b }));
+        """
+        proc = subprocess.run(
+            [node_bin, "--input-type=module", "-e", js_sym],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        out = json.loads(proc.stdout)
+        assert out["nearest"] == 2
+        assert abs(out["b"] - b_fast) < 1e-12
+
+
+def test_hyperparameter_validation_and_empty_cortex_score_clipping():
+    bad_kwargs = [
+        {"order": -1},
+        {"n_neighbors": 0},
+        {"alpha": 0.0},
+        {"alpha": -0.5},
+        {"background_weight": -0.01},
+        {"background_weight": 1.01},
+        {"learn_rate": -0.01},
+        {"learn_rate": 1.5},
+        {"usage_decay": 0.0},
+        {"usage_decay": 1.01},
+    ]
+    for kw in bad_kwargs:
+        with pytest.raises(ValueError):
+            FractalPredictiveCortex(DNA, **kw)
+
+    c_empty_fast = FractalPredictiveCortex(DNA, use_fast=True)
+    c_empty_slow = FractalPredictiveCortex(DNA, use_fast=False)
+    c_empty_fast.global_counts[:] = [1.0, 0.0, 0.0, 0.0]
+    c_empty_slow.global_counts[:] = [1.0, 0.0, 0.0, 0.0]
+    b_ef = float(c_empty_fast.score(DNA.encode("C")).bits[0])
+    b_es = float(c_empty_slow.score(DNA.encode("C")).bits[0])
+    assert b_ef == pytest.approx(-np.log2(1e-18), rel=1e-12)
+    assert b_es == pytest.approx(-np.log2(1e-18), rel=1e-12)
+
+    node_bin = _find_node()
+    if node_bin:
+        js_val = """
+        import * as fpc from "./docs/fpc-engine.js";
+        const cases = [
+          { order: -1 }, { nNeighbors: 0 }, { alpha: 0 }, { alpha: -1 },
+          { backgroundWeight: -0.1 }, { backgroundWeight: 1.1 },
+          { learnRate: -0.1 }, { learnRate: 1.2 },
+          { usageDecay: 0 }, { usageDecay: 1.1 }
+        ];
+        let rejected = 0;
+        for (const opts of cases) {
+          try { new fpc.FractalPredictiveCortex(fpc.DNA, opts); }
+          catch (e) { if (e instanceof RangeError) rejected++; }
+        }
+        const ce = new fpc.FractalPredictiveCortex(fpc.DNA);
+        ce.globalCounts.set([1, 0, 0, 0]);
+        const bEmpty = ce.score(fpc.DNA.encode("C")).bits[0];
+        process.stdout.write(JSON.stringify({ rejected, total: cases.length, bEmpty }));
+        """
+        proc = subprocess.run(
+            [node_bin, "--input-type=module", "-e", js_val],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        out = json.loads(proc.stdout)
+        assert out["rejected"] == out["total"]
+        assert out["bEmpty"] == pytest.approx(-np.log2(1e-18), rel=1e-12)
+
+
+def test_c_kernel_rejects_readonly_and_undersized_buffers():
+    from fpc import _fast
+
+    cx = FractalPredictiveCortex(DNA)
+    verts = np.ascontiguousarray(cx.embedding._all_vertices, dtype=np.float64)
+    ids1 = np.array([0], dtype=np.int64)
+    ro_bytes = bytes([7] * 16)
+    with pytest.raises((TypeError, BufferError)):
+        _fast.cgr_embed(ids1, verts, 0.5, 0.5, 0.5, ro_bytes)
+    assert ro_bytes == bytes([7] * 16)
+
+    C1 = np.zeros((1, 2), dtype=np.float64)
+    X_tiny = np.zeros((1, 2), dtype=np.float64)
+    N_tiny = np.zeros((1, 4), dtype=np.float64)
+    gc = np.ones(4, dtype=np.float64)
+    bits1 = np.zeros(1, dtype=np.float64)
+    with pytest.raises(ValueError, match="Invalid buffer dimensions"):
+        _fast.cortex_score_batch(ids1, C1, X_tiny, N_tiny, gc, bits1, 4, 5, 1, 0.1, 0.5, 0.02)
+
+
+def test_mask_low_quality_non_ascii_and_baselines_and_isolated_imports(tmp_path):
+    if REPO_ROOT not in sys.path:
+        sys.path.insert(0, REPO_ROOT)
+    from benchmarks.afbaselines import mash_sketch
+    from benchmarks.baselines import nrc_nccd_distance_matrices
+
+    masked = io_seq.mask_low_quality("AC\ufffdT?G", "II\ufffdI#I", min_phred=20, wildcard="N")
+    assert masked == "ACNTNG"
+
+    s_dna = mash_sketch("ATGCTAGCTAGCTAGC", k=8, canonical=True)
+    s_rna = mash_sketch("AUGCUAGCUAGCUAGC", k=8, canonical=True)
+    assert s_dna == s_rna and len(s_dna) > 0
+
+    s1 = "ACGTACGT" * 100
+    s2 = "TTTTAAAA" * 100
+    _, nccd_clean = nrc_nccd_distance_matrices([s1, s2], DNA, k=4)
+    _, nccd_gaps = nrc_nccd_distance_matrices([s1, s2 + "N" * 1000], DNA, k=4)
+    assert np.allclose(nccd_clean, nccd_gaps, rtol=1e-12, atol=1e-12)
+    with pytest.raises(ValueError, match="0 canonical"):
+        nrc_nccd_distance_matrices([s1, "NNNNNNNN"], DNA, k=4)
+
+    check_cmd = "\n".join([
+        "import importlib.util, os",
+        f"root = {REPO_ROOT!r}",
+        "for rel in ('examples/quickstart.py', 'examples/make_visuals.py', 'benchmarks/bench.py'):",
+        "    p = os.path.join(root, rel)",
+        "    spec = importlib.util.spec_from_file_location('m', p)",
+        "    mod = importlib.util.module_from_spec(spec)",
+        "    spec.loader.exec_module(mod)",
+        "    assert hasattr(mod, 'main')",
+    ])
+    res = subprocess.run(
+        [sys.executable, "-c", check_cmd],
+        cwd=str(tmp_path),
+        text=True,
+        capture_output=True,
+    )
+    assert res.returncode == 0, res.stderr
+
+
 

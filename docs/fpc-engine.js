@@ -633,26 +633,50 @@ export class FractalPredictiveCortex {
     this.alphabet = alphabet;
     this.a = alphabet.size;
     this.order = options.order !== undefined ? Math.floor(options.order) : 8;
+    if (!Number.isFinite(this.order) || this.order < 0) {
+      throw new RangeError(`order must be >= 0, got ${options.order}`);
+    }
     this.embedding = new ChaosGameEmbedding(alphabet, options.contraction ?? null);
     this.r = this.embedding.r;
 
     this.distThreshold = Math.pow(this.r, this.order);
     this.sigma = Math.max(this.distThreshold, 1e-9);
     this.nNeighbors = options.nNeighbors !== undefined ? Math.floor(options.nNeighbors) : 8;
+    if (!Number.isFinite(this.nNeighbors) || this.nNeighbors < 1) {
+      throw new RangeError(`nNeighbors must be >= 1, got ${options.nNeighbors}`);
+    }
     this.alpha = options.alpha !== undefined ? Number(options.alpha) : 0.5;
+    if (!Number.isFinite(this.alpha) || this.alpha <= 0.0) {
+      throw new RangeError(`alpha must be > 0 and finite, got ${options.alpha}`);
+    }
     this.backgroundWeight =
       options.backgroundWeight !== undefined ? Number(options.backgroundWeight) : 0.02;
+    if (
+      !Number.isFinite(this.backgroundWeight) ||
+      this.backgroundWeight < 0.0 ||
+      this.backgroundWeight > 1.0
+    ) {
+      throw new RangeError(
+        `backgroundWeight must be in [0, 1], got ${options.backgroundWeight}`
+      );
+    }
     this.learnRate = options.learnRate !== undefined ? Number(options.learnRate) : 0.02;
+    if (!Number.isFinite(this.learnRate) || this.learnRate < 0.0 || this.learnRate > 1.0) {
+      throw new RangeError(`learnRate must be in [0, 1], got ${options.learnRate}`);
+    }
     this.surpriseGrowth =
       options.surpriseGrowth !== undefined ? Boolean(options.surpriseGrowth) : true;
     this.maxPrototypes =
       options.maxPrototypes !== undefined ? Math.floor(options.maxPrototypes) : 6000;
-    if (this.maxPrototypes < 1) {
-      throw new RangeError(`maxPrototypes must be >= 1, got ${this.maxPrototypes}`);
+    if (!Number.isFinite(this.maxPrototypes) || this.maxPrototypes < 1) {
+      throw new RangeError(`maxPrototypes must be >= 1, got ${options.maxPrototypes}`);
     }
     this.pruneInterval =
       options.pruneInterval !== undefined ? Math.floor(options.pruneInterval) : 4000;
     this.usageDecay = options.usageDecay !== undefined ? Number(options.usageDecay) : 0.9997;
+    if (!Number.isFinite(this.usageDecay) || this.usageDecay <= 0.0 || this.usageDecay > 1.0) {
+      throw new RangeError(`usageDecay must be in (0, 1], got ${options.usageDecay}`);
+    }
 
     this._cap = Math.max(64, Math.min(this._growthCap() + 1, 2048));
     this._m = 0;
@@ -814,12 +838,25 @@ export class FractalPredictiveCortex {
   score(ids, onProgress = null) {
     const T = ids.length;
     if (T === 0) return new SurpriseTrack(new Float64Array(0));
-    if (this._m === 0) return this._stream(ids, false, onProgress);
-
-    const C = this.embedding.contextPoints(ids);
     const bits = new Float64Array(T);
     bits.fill(NaN);
     const a = this.a;
+    if (this._m === 0) {
+      let gcSum = 0.0;
+      for (let s = 0; s < a; s++) gcSum += this.globalCounts[s];
+      const invGc = 1.0 / gcSum;
+      for (let t = 0; t < T; t++) {
+        const s = ids[t];
+        if (s >= 0 && s < a) {
+          const ps = Math.max(1e-18, Math.min(1.0, this.globalCounts[s] * invGc));
+          bits[t] = -Math.log(ps) * LOG2E;
+        }
+        if (onProgress && (t & 32767) === 32767) onProgress(t + 1, T);
+      }
+      return new SurpriseTrack(bits);
+    }
+
+    const C = this.embedding.contextPoints(ids);
     const idxBuf = new Int32Array(Math.max(1, this.nNeighbors));
     const d2Buf = new Float64Array(Math.max(1, this.nNeighbors));
     const pBuf = new Float64Array(a);
@@ -1754,6 +1791,18 @@ export function distanceMatrix(
   const effMax = maxPrototypes ?? defaultMaxPrototypes(alphabet, order);
   const useSym = Boolean(strandInvariant && alphabet.isComplementary);
   const fwdIds = sequences.map((s) => alphabet.encode(s));
+  for (let idx = 0; idx < n; idx++) {
+    const arr = fwdIds[idx];
+    let canonicalCount = 0;
+    for (let t = 0; t < arr.length; t++) {
+      if (arr[t] >= 0 && arr[t] < alphabet.size) canonicalCount++;
+    }
+    if (canonicalCount === 0) {
+      throw new Error(
+        `Sequence at index ${idx} contains 0 canonical ${alphabet.name} symbols`
+      );
+    }
+  }
   const rcIds = useSym ? fwdIds.map((x) => alphabet.reverseComplementIds(x)) : null;
 
   const cortices = new Array(n);
@@ -1792,6 +1841,9 @@ export function distanceMatrix(
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const d = 0.5 * (ce[i][j] - ce[j][j] + (ce[j][i] - ce[i][i]));
+      if (!Number.isFinite(d)) {
+        throw new Error(`Non-finite cross-entropy distance between sequences ${i} and ${j}`);
+      }
       const val = Math.max(0.0, d);
       D[i][j] = val;
       D[j][i] = val;
@@ -1826,6 +1878,16 @@ export function neighborJoining(D, names, { clampNegative = true, precision = 6 
   const n = D.length;
   if (n !== names.length) throw new Error("Distance matrix and names length mismatch");
   if (n === 0) throw new Error("Cannot build tree from 0 taxa");
+  for (let i = 0; i < n; i++) {
+    if (!D[i] || D[i].length !== n) {
+      throw new Error("Distance matrix must be square 2-D");
+    }
+    for (let j = 0; j < n; j++) {
+      if (!Number.isFinite(D[i][j])) {
+        throw new Error("Distance matrix contains non-finite (NaN or Inf) values");
+      }
+    }
+  }
   if (n === 1) {
     const root = { name: String(names[0]), branchLength: 0.0, children: [] };
     return { root, newick: nodeToNewickBody(root, precision) + ";" };
@@ -1937,8 +1999,21 @@ export function formatDistanceTsv(D, names, precision = 6) {
 
 // Classical 3-D MDS via symmetric Jacobi eigendecomposition + Prim's MST
 export function mdsEmbedding(D, dims = 3) {
+  if (!Number.isInteger(dims) || dims < 1) {
+    throw new RangeError(`dims must be an integer >= 1, got ${dims}`);
+  }
   const n = D.length;
   if (n === 0) return [];
+  for (let i = 0; i < n; i++) {
+    if (!D[i] || D[i].length !== n) {
+      throw new Error("Distance matrix must be square 2-D");
+    }
+    for (let j = 0; j < n; j++) {
+      if (!Number.isFinite(D[i][j])) {
+        throw new Error("Distance matrix contains non-finite (NaN or Inf) values");
+      }
+    }
+  }
   const D2 = Array.from({ length: n }, (_, i) =>
     Float64Array.from({ length: n }, (__, j) => D[i][j] * D[i][j])
   );

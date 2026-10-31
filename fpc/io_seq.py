@@ -91,10 +91,23 @@ def mask_low_quality(
         )
     if min_phred <= 0 or not seq:
         return seq
-    seq_bytes = np.frombuffer(seq.encode("ascii"), dtype=np.uint8).copy()
-    qual_bytes = np.frombuffer(qual.encode("ascii"), dtype=np.uint8)
+    wild_byte = ord(wildcard[0])
+    if seq.isascii():
+        seq_bytes = np.frombuffer(seq.encode("ascii"), dtype=np.uint8).copy()
+    else:
+        seq_bytes = np.array(
+            [ord(ch) if ord(ch) < 128 else wild_byte for ch in seq], dtype=np.uint8
+        )
+    if qual.isascii():
+        qual_bytes = np.frombuffer(qual.encode("ascii"), dtype=np.uint8)
+    else:
+        floor_byte = max(0, min(255, int(phred_offset)))
+        qual_bytes = np.array(
+            [ord(ch) if 33 <= ord(ch) <= 126 else floor_byte for ch in qual],
+            dtype=np.uint8,
+        )
     cutoff = int(phred_offset) + int(min_phred)
-    seq_bytes[qual_bytes < cutoff] = ord(wildcard[0])
+    seq_bytes[qual_bytes < cutoff] = wild_byte
     return seq_bytes.tobytes().decode("ascii")
 
 

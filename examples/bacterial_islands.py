@@ -7,7 +7,7 @@ Real 10.14 Mb comparative genomics validation of GenoCortex v1.0:
 * **Reference (commensal core):** *Escherichia coli* str. K-12 substr. MG1655
   (RefSeq ``NC_000913.3``, 4,641,652 bp)
 * **Query (enterohemorrhagic pathogen):** *Escherichia coli* O157:H7 str. Sakai
-  (RefSeq ``NC_002695.2``, 5,498,450 bp)
+  (RefSeq ``NC_002695.2``, 5,498,578 bp)
 
 Trains a double-strand Fractal Predictive Cortex on both chromosomal strands of
 *E. coli* K-12 MG1655 (making the brain invariant to core chromosomal inversions)

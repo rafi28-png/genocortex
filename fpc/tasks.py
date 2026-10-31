@@ -414,6 +414,11 @@ def distance_matrix(
 
     use_sym_strand = bool(strand_invariant and alphabet.is_complementary)
     fwd_ids = [alphabet.encode(s) for s in sequences]
+    for idx, x in enumerate(fwd_ids):
+        if int(np.sum((x >= 0) & (x < alphabet.size))) == 0:
+            raise ValueError(
+                f"Sequence at index {idx} contains 0 canonical {alphabet.name} symbols"
+            )
     rc_ids = (
         [alphabet.reverse_complement_ids(x) for x in fwd_ids]
         if use_sym_strand
@@ -451,6 +456,10 @@ def distance_matrix(
     for i in range(n):
         for j in range(i + 1, n):
             d = 0.5 * ((ce[i, j] - ce[j, j]) + (ce[j, i] - ce[i, i]))
+            if not np.isfinite(d):
+                raise ValueError(
+                    f"Non-finite cross-entropy distance between sequences {i} and {j}"
+                )
             D[i, j] = D[j, i] = max(0.0, d)
     return D
 
@@ -460,17 +469,33 @@ def mds_embedding(D: np.ndarray, dims: int = 3) -> np.ndarray:
 
     Pure NumPy. Returns coordinates ``(n, dims)`` suitable for the 3-D viewer.
     """
+    dims = int(dims)
+    if dims < 1:
+        raise ValueError(f"dims must be >= 1, got {dims}")
     D = np.asarray(D, dtype=np.float64)
+    if D.ndim != 2 or D.shape[0] != D.shape[1]:
+        raise ValueError(f"Distance matrix must be square 2-D, got shape {D.shape}")
+    if not np.all(np.isfinite(D)):
+        raise ValueError("Distance matrix contains non-finite (NaN or Inf) values")
     n = D.shape[0]
+    if n == 0:
+        return np.zeros((0, dims), dtype=np.float64)
+    if n == 1:
+        return np.zeros((1, dims), dtype=np.float64)
     J = np.eye(n) - np.ones((n, n)) / n
     B = -0.5 * J @ (D ** 2) @ J
     B = 0.5 * (B + B.T)                      # symmetrise against round-off
     vals, vecs = np.linalg.eigh(B)
     order = np.argsort(vals)[::-1]
-    vals = vals[order][:dims]
-    vecs = vecs[:, order][:, :dims]
-    vals = np.clip(vals, 0, None)
-    return vecs * np.sqrt(vals)[None, :]
+    k = min(dims, n)
+    vals = np.clip(vals[order][:k], 0.0, None)
+    vecs = vecs[:, order][:, :k]
+    coords = vecs * np.sqrt(vals)[None, :]
+    if k < dims:
+        out = np.zeros((n, dims), dtype=np.float64)
+        out[:, :k] = coords
+        return out
+    return coords
 
 
 def cluster(D: np.ndarray, n_clusters: int, method: str = "average") -> np.ndarray:

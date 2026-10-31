@@ -50,15 +50,15 @@ def mash_sketch(seq: str, k: int = 14, sketch_size: int = 400,
                 canonical: bool = True) -> set:
     """Bottom-``sketch_size`` MinHash sketch of a sequence's k-mers."""
     seq = seq.upper()
+    if canonical:
+        seq = seq.replace("U", "T")
     hashes = set()
     n = len(seq)
     for i in range(n - k + 1):
         kmer = seq[i:i + k]
-        if any(c not in "ACGTU" for c in kmer) and canonical:
-            # allow non-DNA (e.g. protein) only when canonical is off
-            if canonical:
-                continue
         if canonical:
+            if any(c not in "ACGT" for c in kmer):
+                continue
             kmer = _canonical(kmer)
         hashes.add(_fnv1a64(kmer))
     return set(sorted(hashes)[:sketch_size])

@@ -22,14 +22,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fpc import FractalPredictiveCortex, DNA, tasks, datasets
-from baselines import KmerMarkov, gzip_bits, kmer_vector
+from benchmarks.baselines import KmerMarkov, gzip_bits, kmer_vector
 
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression

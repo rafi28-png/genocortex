@@ -136,8 +136,11 @@ def cognitive_map_html(cortex, ids, out_path: str, grid: int = 96,
         gx = np.clip((pf["x"][idx] * grid).astype(int), 0, grid - 1)
         gy = np.clip((pf["y"][idx] * grid).astype(int), 0, grid - 1)
         zc = z[gy, gx]
-        zc = np.where(np.isfinite(zc), zc, np.nanmin(z))
-        lift = 0.04 * (np.nanmax(z) - np.nanmin(z) + 1e-9)
+        finite_z = z[np.isfinite(z)]
+        z_min = float(finite_z.min()) if finite_z.size > 0 else 0.0
+        z_max = float(finite_z.max()) if finite_z.size > 0 else 2.0
+        zc = np.where(np.isfinite(zc), zc, z_min)
+        lift = 0.04 * (z_max - z_min + 1e-9)
         sym_names = cortex.alphabet.symbols
         dominant = pf["dominant"][idx]
         for s in range(cortex.a):

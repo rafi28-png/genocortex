@@ -46,7 +46,7 @@ def ncbi_search(term: str, db: str = "protein", email: str | None = None,
     if api_key:
         params["api_key"] = api_key
     url = f"{_ESEARCH}?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, headers={"User-Agent": "GenoCortex/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "GenoCortex/1.0.0"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read().decode("utf-8", "ignore"))
     return list(data.get("esearchresult", {}).get("idlist", []))
@@ -74,7 +74,7 @@ def ncbi_fasta(accession: str, db: str = "nucleotide", email: str | None = None,
     last = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "GenoCortex/0.1"})
+            req = urllib.request.Request(url, headers={"User-Agent": "GenoCortex/1.0.0"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 text = resp.read().decode("utf-8", "ignore")
             return _parse_single(text, accession)

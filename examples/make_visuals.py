@@ -2,9 +2,12 @@
 Generate the interactive 3-D artifacts (all offline standalone HTML).
 
 Run:  python examples/make_visuals.py
-Outputs land in  D:\\genocortex\\output\\
+Outputs land in  output/
 """
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fpc import FractalPredictiveCortex, DNA, tasks, datasets
 from viz import cognitive_map_html, phylogeny_3d_html

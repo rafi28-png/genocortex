@@ -112,12 +112,19 @@ def nrc_nccd_distance_matrices(sequences, alphabet: Alphabet = DNA, k: int = 9):
     import math
     ids = [alphabet.encode(s) for s in sequences]
     n = len(sequences)
+    lengths = np.array(
+        [int(np.sum((x >= 0) & (x < alphabet.size))) for x in ids], dtype=np.float64
+    )
+    for idx, c_len in enumerate(lengths):
+        if c_len <= 0:
+            raise ValueError(
+                f"Sequence at index {idx} contains 0 canonical {alphabet.name} symbols"
+            )
     models = [KmerMarkov(alphabet, k).fit(x) for x in ids]
     ce = np.zeros((n, n))                       # ce[i,j] = bits/symbol of seq_i under model_j
     for i in range(n):
         for j in range(n):
             ce[i, j] = models[j].cross_entropy(ids[i])
-    lengths = np.array([len(x) for x in ids], dtype=np.float64)
     log_a = math.log2(alphabet.size)
 
     nrc = ce / log_a

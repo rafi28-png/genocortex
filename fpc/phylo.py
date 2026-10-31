@@ -93,6 +93,8 @@ def neighbor_joining(
         raise ValueError(f"Expected {n} taxon names, got {len(names)}")
     if n == 0:
         raise ValueError("Cannot build phylogenetic tree from 0 taxa")
+    if not np.all(np.isfinite(mat)):
+        raise ValueError("Distance matrix contains non-finite (NaN or Inf) values")
     if n == 1:
         return PhyloNode(name=str(names[0]), branch_length=0.0)
 

@@ -4,7 +4,11 @@ Quickstart: all four abilities of the Fractal Predictive Cortex, from one engine
 Run:  python examples/quickstart.py
 """
 from collections import defaultdict
+import os
+import sys
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fpc import FractalPredictiveCortex, DNA, tasks, datasets
 

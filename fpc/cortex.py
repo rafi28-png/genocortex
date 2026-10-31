@@ -124,19 +124,33 @@ class FractalPredictiveCortex:
         self.embedding = ChaosGameEmbedding(alphabet, contraction, use_fast=self.use_fast)
         self.r = self.embedding.r
         self.a = alphabet.size
+        if int(order) < 0:
+            raise ValueError(f"order must be >= 0, got {order}")
         self.order = int(order)
 
         self.dist_threshold = float(self.r ** self.order)
         self.sigma = max(self.dist_threshold, 1e-9)
+        if int(n_neighbors) < 1:
+            raise ValueError(f"n_neighbors must be >= 1, got {n_neighbors}")
         self.n_neighbors = int(n_neighbors)
+        if not (np.isfinite(alpha) and float(alpha) > 0.0):
+            raise ValueError(f"alpha must be > 0 and finite, got {alpha}")
         self.alpha = float(alpha)
+        if not (np.isfinite(background_weight) and 0.0 <= float(background_weight) <= 1.0):
+            raise ValueError(
+                f"background_weight must be in [0, 1], got {background_weight}"
+            )
         self.background_weight = float(background_weight)
+        if not (np.isfinite(learn_rate) and 0.0 <= float(learn_rate) <= 1.0):
+            raise ValueError(f"learn_rate must be in [0, 1], got {learn_rate}")
         self.learn_rate = float(learn_rate)
         self.surprise_growth = bool(surprise_growth)
         if int(max_prototypes) < 1:
             raise ValueError(f"max_prototypes must be >= 1, got {max_prototypes}")
         self.max_prototypes = int(max_prototypes)
         self.prune_interval = int(prune_interval)
+        if not (np.isfinite(usage_decay) and 0.0 < float(usage_decay) <= 1.0):
+            raise ValueError(f"usage_decay must be in (0, 1], got {usage_decay}")
         self.usage_decay = float(usage_decay)
         self.seed = int(seed)
         self._rng = np.random.default_rng(self.seed)
@@ -221,11 +235,8 @@ class FractalPredictiveCortex:
         d2 = np.einsum("ij,ij->i", diff, diff)          # squared distances
 
         k = min(self.n_neighbors, self._m)
-        if k < self._m:
-            nn = np.argpartition(d2, k - 1)[:k]
-        else:
-            nn = np.arange(self._m)
-        nearest_local = nn[np.argmin(d2[nn])]
+        nn = np.argsort(d2, kind="mergesort")[:k]
+        nearest_local = int(nn[0])
         nearest_dist = float(np.sqrt(d2[nearest_local]))
 
         w = np.exp(-d2[nn] / (2.0 * self.sigma * self.sigma))
@@ -311,7 +322,15 @@ class FractalPredictiveCortex:
         if len(ids_c) == 0:
             return SurpriseTrack(np.empty(0, dtype=np.float64))
 
-        if self.use_fast and HAS_FAST_KERNEL and self._m > 0:
+        if self._m == 0:
+            bg = self._background()
+            bits = np.full(len(ids_c), np.nan, dtype=np.float64)
+            canonical = (ids_c >= 0) & (ids_c < self.a)
+            probs = np.clip(bg[ids_c[canonical]], 1e-18, 1.0)
+            bits[canonical] = -np.log2(probs)
+            return SurpriseTrack(bits)
+
+        if self.use_fast and HAS_FAST_KERNEL:
             C = np.ascontiguousarray(
                 self.embedding.context_points(ids_c, use_fast=True), dtype=np.float64
             )
@@ -332,9 +351,17 @@ class FractalPredictiveCortex:
             )
             return SurpriseTrack(bits)
 
-        if _HAVE_KDTREE and self._m > 0:
+        if _HAVE_KDTREE:
             return self._score_fast(ids_c)
-        return self._stream(ids_c, update=False)
+
+        C = self.embedding.context_points(ids_c, use_fast=False)
+        bits = np.full(len(ids_c), np.nan, dtype=np.float64)
+        for t in range(len(ids_c)):
+            s = int(ids_c[t])
+            if 0 <= s < self.a:
+                p, _, _ = self.predict_dist(C[t])
+                bits[t] = -np.log2(float(np.clip(p[s], 1e-18, 1.0)))
+        return SurpriseTrack(bits)
 
     def _score_fast(self, ids: np.ndarray) -> SurpriseTrack:
         a = self.a

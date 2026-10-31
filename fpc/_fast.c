@@ -352,14 +352,14 @@ static PyObject *py_cgr_embed(PyObject *self, PyObject *args) {
     double centre_x, centre_y, r;
 
     if (!PyArg_ParseTuple(
-            args, "y*y*dddy*",
+            args, "y*y*dddw*",
             &ids_buf, &verts_buf, &centre_x, &centre_y, &r, &out_buf)) {
         return NULL;
     }
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
     Py_ssize_t n_verts = verts_buf.len / (Py_ssize_t)(2 * sizeof(double));
-    if (out_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) || n_verts <= 0) {
+    if (T < 0 || out_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) || n_verts <= 0) {
         PyBuffer_Release(&ids_buf);
         PyBuffer_Release(&verts_buf);
         PyBuffer_Release(&out_buf);
@@ -407,7 +407,7 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(
             args,
-            "y*y*y*y*y*y*y*iiiidddddpiidLLddi",
+            "y*y*w*w*w*w*w*iiiidddddpiidLLddi",
             &ids_buf, &C_buf, &X_buf, &N_buf, &usage_buf, &global_buf, &bits_buf,
             &a, &m, &cap, &n_neighbors,
             &dist_threshold, &sigma, &alpha, &background_weight, &learn_rate,
@@ -417,7 +417,11 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
     }
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
-    if (a <= 0 || n_neighbors <= 0 || max_prototypes < 1 || cap < m ||
+    if (a <= 0 || m < 0 || cap < 1 || cap < m || n_neighbors <= 0 || max_prototypes < 1 ||
+        sigma <= 0.0 || alpha <= 0.0 ||
+        X_buf.len < (Py_ssize_t)cap * (Py_ssize_t)(2 * sizeof(double)) ||
+        N_buf.len < (Py_ssize_t)cap * (Py_ssize_t)a * (Py_ssize_t)sizeof(double) ||
+        usage_buf.len < (Py_ssize_t)cap * (Py_ssize_t)sizeof(double) ||
         C_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) ||
         bits_buf.len < T * (Py_ssize_t)sizeof(double) ||
         global_buf.len < (Py_ssize_t)a * (Py_ssize_t)sizeof(double)) {
@@ -637,14 +641,16 @@ static PyObject *py_cortex_score_batch(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(
             args,
-            "y*y*y*y*y*y*iiiddd",
+            "y*y*y*y*y*w*iiiddd",
             &ids_buf, &C_buf, &X_buf, &N_buf, &global_buf, &bits_buf,
             &a, &m, &n_neighbors, &sigma, &alpha, &background_weight)) {
         return NULL;
     }
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
-    if (a <= 0 || n_neighbors <= 0 || m < 0 ||
+    if (a <= 0 || n_neighbors <= 0 || m < 0 || sigma <= 0.0 || alpha <= 0.0 ||
+        X_buf.len < (Py_ssize_t)m * (Py_ssize_t)(2 * sizeof(double)) ||
+        N_buf.len < (Py_ssize_t)m * (Py_ssize_t)a * (Py_ssize_t)sizeof(double) ||
         C_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) ||
         bits_buf.len < T * (Py_ssize_t)sizeof(double) ||
         global_buf.len < (Py_ssize_t)a * (Py_ssize_t)sizeof(double)) {
@@ -708,7 +714,9 @@ static PyObject *py_cortex_score_batch(PyObject *self, PyObject *args) {
         }
         if (m == 0) {
             double ps = bg[s];
-            bits[t] = (ps > 0.0) ? (-log2(ps)) : 60.0;
+            if (ps < 1e-18) ps = 1e-18;
+            else if (ps > 1.0) ps = 1.0;
+            bits[t] = -log2(ps);
             continue;
         }
 
@@ -724,7 +732,9 @@ static PyObject *py_cortex_score_batch(PyObject *self, PyObject *args) {
         }
         if (wsum <= 0.0) {
             double ps = bg[s];
-            bits[t] = (ps > 0.0) ? (-log2(ps)) : 60.0;
+            if (ps < 1e-18) ps = 1e-18;
+            else if (ps > 1.0) ps = 1.0;
+            bits[t] = -log2(ps);
             continue;
         }
 
