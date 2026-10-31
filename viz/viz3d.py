@@ -187,16 +187,37 @@ def phylogeny_3d_html(coords: np.ndarray, labels, out_path: str,
     names = list(names) if names is not None else [str(i) for i in range(n)]
 
     data = []
-    # MST skeleton first (drawn under the nodes).
-    if distance_matrix is not None:
-        mst = minimum_spanning_tree(np.asarray(distance_matrix)).toarray()
+    # MST skeleton first (drawn under the nodes). Dense Prim's algorithm preserves
+    # 0.0-weight edges between identical isolates (unlike scipy.sparse.csgraph,
+    # which treats 0.0 in a dense matrix as an absent edge).
+    if distance_matrix is not None and n >= 2:
+        dmat = np.asarray(distance_matrix, dtype=float)
+        in_tree = np.zeros(n, dtype=bool)
+        min_dist = np.full(n, np.inf, dtype=float)
+        parent = np.full(n, -1, dtype=int)
+        in_tree[0] = True
+        for j in range(1, n):
+            min_dist[j] = dmat[0, j]
+            parent[j] = 0
         ex, ey, ez = [], [], []
-        for i in range(n):
+        for _ in range(1, n):
+            u = -1
+            best = np.inf
             for j in range(n):
-                if mst[i, j] > 0:
-                    ex += [coords[i, 0], coords[j, 0], None]
-                    ey += [coords[i, 1], coords[j, 1], None]
-                    ez += [coords[i, 2], coords[j, 2], None]
+                if not in_tree[j] and min_dist[j] < best:
+                    best = min_dist[j]
+                    u = j
+            if u < 0:
+                break
+            in_tree[u] = True
+            p = int(parent[u])
+            ex += [coords[p, 0], coords[u, 0], None]
+            ey += [coords[p, 1], coords[u, 1], None]
+            ez += [coords[p, 2], coords[u, 2], None]
+            for v in range(n):
+                if not in_tree[v] and dmat[u, v] < min_dist[v]:
+                    min_dist[v] = dmat[u, v]
+                    parent[v] = u
         data.append(go.Scatter3d(x=ex, y=ey, z=ez, mode="lines",
                                  line=dict(color=MUTED, width=2),
                                  name="lineage (MST)", hoverinfo="skip"))

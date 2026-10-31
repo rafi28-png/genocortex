@@ -182,8 +182,11 @@ class SurpriseTrack:
             peak_local = int(np.nanargmax(zseg))
             peak_pos = i + peak_local
             peak_z = float(zseg[peak_local])
-            with np.errstate(invalid="ignore"):
-                region_bits = float(np.nanmean(self.bits[seg]))
+            seg_bits = self.bits[seg]
+            valid_seg = seg_bits[np.isfinite(seg_bits)]
+            region_bits = (
+                float(valid_seg.mean()) if valid_seg.size > 0 else float(np.mean(s[seg]))
+            )
             if _HAVE_SCIPY:
                 p = float(_norm.sf(peak_z))
             else:  # pragma: no cover - fallback tail bound

@@ -359,11 +359,12 @@ static PyObject *py_cgr_embed(PyObject *self, PyObject *args) {
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
     Py_ssize_t n_verts = verts_buf.len / (Py_ssize_t)(2 * sizeof(double));
-    if (T < 0 || out_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) || n_verts <= 0) {
+    if (T < 0 || out_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) || n_verts < 2 ||
+        !isfinite(centre_x) || !isfinite(centre_y) || !isfinite(r) || r <= 0.0 || r >= 1.0) {
         PyBuffer_Release(&ids_buf);
         PyBuffer_Release(&verts_buf);
         PyBuffer_Release(&out_buf);
-        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions in cgr_embed");
+        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions or contraction in cgr_embed");
         return NULL;
     }
 
@@ -418,7 +419,13 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
     if (a <= 0 || m < 0 || cap < 1 || cap < m || n_neighbors <= 0 || max_prototypes < 1 ||
-        sigma <= 0.0 || alpha <= 0.0 ||
+        !isfinite(dist_threshold) || dist_threshold < 0.0 ||
+        !isfinite(sigma) || sigma <= 0.0 ||
+        !isfinite(alpha) || alpha <= 0.0 ||
+        !isfinite(background_weight) || background_weight < 0.0 || background_weight > 1.0 ||
+        !isfinite(learn_rate) || learn_rate < 0.0 || learn_rate > 1.0 ||
+        !isfinite(usage_decay) || usage_decay <= 0.0 || usage_decay > 1.0 ||
+        !isfinite(surp_mean) || !isfinite(surp_m2) || surp_m2 < 0.0 ||
         X_buf.len < (Py_ssize_t)cap * (Py_ssize_t)(2 * sizeof(double)) ||
         N_buf.len < (Py_ssize_t)cap * (Py_ssize_t)a * (Py_ssize_t)sizeof(double) ||
         usage_buf.len < (Py_ssize_t)cap * (Py_ssize_t)sizeof(double) ||
@@ -432,7 +439,7 @@ static PyObject *py_cortex_stream(PyObject *self, PyObject *args) {
         PyBuffer_Release(&usage_buf);
         PyBuffer_Release(&global_buf);
         PyBuffer_Release(&bits_buf);
-        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions in cortex_stream");
+        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions or hyperparameters in cortex_stream");
         return NULL;
     }
 
@@ -648,7 +655,10 @@ static PyObject *py_cortex_score_batch(PyObject *self, PyObject *args) {
     }
 
     Py_ssize_t T = ids_buf.len / (Py_ssize_t)sizeof(int64_t);
-    if (a <= 0 || n_neighbors <= 0 || m < 0 || sigma <= 0.0 || alpha <= 0.0 ||
+    if (a <= 0 || n_neighbors <= 0 || m < 0 ||
+        !isfinite(sigma) || sigma <= 0.0 ||
+        !isfinite(alpha) || alpha <= 0.0 ||
+        !isfinite(background_weight) || background_weight < 0.0 || background_weight > 1.0 ||
         X_buf.len < (Py_ssize_t)m * (Py_ssize_t)(2 * sizeof(double)) ||
         N_buf.len < (Py_ssize_t)m * (Py_ssize_t)a * (Py_ssize_t)sizeof(double) ||
         C_buf.len < T * (Py_ssize_t)(2 * sizeof(double)) ||
@@ -660,7 +670,7 @@ static PyObject *py_cortex_score_batch(PyObject *self, PyObject *args) {
         PyBuffer_Release(&N_buf);
         PyBuffer_Release(&global_buf);
         PyBuffer_Release(&bits_buf);
-        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions in cortex_score_batch");
+        PyErr_SetString(PyExc_ValueError, "Invalid buffer dimensions or hyperparameters in cortex_score_batch");
         return NULL;
     }
 

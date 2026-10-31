@@ -171,8 +171,16 @@ class FPCClassifier:
         self.classes_: list = []
 
     def fit(self, sequences, labels) -> "FPCClassifier":
+        seq_list = list(sequences)
+        lab_list = list(labels)
+        if len(seq_list) != len(lab_list):
+            raise ValueError(
+                f"sequences length ({len(seq_list)}) != labels length ({len(lab_list)})"
+            )
+        if not seq_list:
+            raise ValueError("FPCClassifier.fit requires at least 1 training sequence")
         by_label: dict = {}
-        for seq, lab in zip(sequences, labels):
+        for seq, lab in zip(seq_list, lab_list):
             by_label.setdefault(lab, []).append(seq)
         self.classes_ = sorted(by_label)
         self.models = {}
@@ -180,11 +188,18 @@ class FPCClassifier:
             cortex = FractalPredictiveCortex(
                 self.alphabet, order=self.order, **self.cortex_kwargs
             )
+            canonical_total = 0
             for seq in by_label[lab]:
+                ids = self.alphabet.encode(seq)
+                canonical_total += int(np.sum((ids >= 0) & (ids < self.alphabet.size)))
                 cortex.fit(
-                    self.alphabet.encode(seq),
+                    ids,
                     epochs=self.epochs,
                     double_strand=self.double_strand_train,
+                )
+            if canonical_total == 0:
+                raise ValueError(
+                    f"Training class {lab!r} contains 0 canonical {self.alphabet.name} symbols"
                 )
             self.models[lab] = cortex
         return self
@@ -226,8 +241,16 @@ class FPCClassifier:
 
     def predict(self, sequences) -> list:
         M = self.score_matrix(sequences)
-        idx = np.argmin(M, axis=1)
-        return [self.classes_[j] for j in idx]
+        if M.shape[0] == 0:
+            return []
+        preds = []
+        for row in M:
+            if not np.any(np.isfinite(row)):
+                preds.append("UNCLASSIFIED")
+            else:
+                safe_row = np.where(np.isfinite(row), row, np.inf)
+                preds.append(self.classes_[int(np.argmin(safe_row))])
+        return preds
 
     def predict_proba(self, sequences) -> np.ndarray:
         """Turn cross-entropies into class posteriors via a softmax over -bits.

@@ -35,12 +35,16 @@ from .alphabet import Alphabet, DNA
 # --------------------------------------------------------------------- #
 def random_sequence(length: int, alphabet: Alphabet = DNA,
                     gc: float | None = None, seed: int = 0) -> str:
-    """A max-entropy sequence. For DNA, ``gc`` sets the G+C fraction."""
+    """A max-entropy sequence. For 4-base DNA/RNA alphabets, ``gc`` sets the G+C fraction."""
     rng = np.random.default_rng(seed)
     a = alphabet.size
-    if gc is not None and alphabet is DNA:
-        # A, C, G, T  ->  weight C,G by gc/2 and A,T by (1-gc)/2.
-        p = np.array([(1 - gc) / 2, gc / 2, gc / 2, (1 - gc) / 2])
+    if gc is not None and a == 4 and "G" in alphabet.symbols and "C" in alphabet.symbols:
+        if not np.isfinite(gc) or gc < 0.0 or gc > 1.0:
+            raise ValueError(f"gc must be in [0, 1], got {gc!r}")
+        p = np.array(
+            [gc / 2.0 if ch in ("G", "C") else (1.0 - gc) / 2.0 for ch in alphabet.symbols],
+            dtype=np.float64,
+        )
     else:
         p = np.full(a, 1.0 / a)
     ids = rng.choice(a, size=length, p=p)
@@ -228,7 +232,7 @@ def insert_foreign(host: str, donor: str, position: int | None = None,
     """
     rng = np.random.default_rng(seed)
     if position is None:
-        position = int(rng.integers(0, len(host)))
+        position = int(rng.integers(0, len(host) + 1))
     chimera = host[:position] + donor + host[position:]
     return chimera, (position, position + len(donor) - 1)
 

@@ -30,6 +30,15 @@ function postProgress(id, stage, current, total) {
   self.postMessage({ type: "progress", id, stage, current, total });
 }
 
+function numParam(val, fallback) {
+  if (val === undefined || val === null || String(val).trim() === "") return fallback;
+  const n = Number(val);
+  if (!Number.isFinite(n)) {
+    throw new RangeError(`Invalid numeric parameter: ${val}`);
+  }
+  return n;
+}
+
 self.onmessage = (event) => {
   const { id, task, payload } = event.data || {};
   const t0 = performance.now();
@@ -37,21 +46,22 @@ self.onmessage = (event) => {
   try {
     if (task === "scan") {
       const alphabet = getAlphabet(payload.alphabet || "DNA");
+      const minPhred = numParam(payload.minPhred, 0);
       const queryRecords = parseSequences(payload.queryText, {
-        minPhred: payload.minPhred || 0,
+        minPhred,
         wildcard: alphabet.wildcard,
       });
-      const order = Number(payload.order || 7);
-      const window = Number(payload.window || 500);
-      const step = Number(payload.step || Math.max(1, Math.floor(window / 4)));
-      const zThreshold = Number(payload.zThreshold || 3.2);
-      const alpha = Number(payload.alpha || 0.05);
-      const mergeGap = payload.mergeGap !== undefined ? Number(payload.mergeGap) : window * 2;
+      const order = numParam(payload.order, 7);
+      const window = numParam(payload.window, 500);
+      const step = numParam(payload.step, Math.max(1, Math.floor(window / 4)));
+      const zThreshold = numParam(payload.zThreshold, 3.2);
+      const alpha = numParam(payload.alpha, 0.05);
+      const mergeGap = numParam(payload.mergeGap, window * 2);
 
       let scanOut;
       if (payload.refText && String(payload.refText).trim().length > 0) {
         const refRecords = parseSequences(payload.refText, {
-          minPhred: payload.minPhred || 0,
+          minPhred,
           wildcard: alphabet.wildcard,
         });
         scanOut = scanAgainstReference(refRecords, queryRecords, {
@@ -136,7 +146,7 @@ self.onmessage = (event) => {
     if (task === "tree") {
       const alphabet = getAlphabet(payload.alphabet || "DNA");
       const records = parseSequences(payload.fastaText, {
-        minPhred: payload.minPhred || 0,
+        minPhred: numParam(payload.minPhred, 0),
         wildcard: alphabet.wildcard,
       });
       if (records.length < 2) {
@@ -144,7 +154,7 @@ self.onmessage = (event) => {
       }
       const names = records.map((r) => r.id);
       const seqs = records.map((r) => r.seq);
-      const order = Number(payload.order || 6);
+      const order = numParam(payload.order, 6);
       const strandInvariant = payload.strandInvariant !== false && alphabet.isComplementary;
 
       const D = distanceMatrix(seqs, {
@@ -183,18 +193,19 @@ self.onmessage = (event) => {
 
     if (task === "classify") {
       const alphabet = getAlphabet(payload.alphabet || "DNA");
+      const minPhred = numParam(payload.minPhred, 0);
       const refRecords = parseSequences(payload.refText, {
-        minPhred: payload.minPhred || 0,
+        minPhred,
         wildcard: alphabet.wildcard,
       });
       if (refRecords.length < 2) {
         throw new Error("Provide at least 2 reference FASTA records (each '>' record ID is a class label)");
       }
       const queryRecords = parseSequences(payload.queryText, {
-        minPhred: payload.minPhred || 0,
+        minPhred,
         wildcard: alphabet.wildcard,
       });
-      const order = Number(payload.order || 7);
+      const order = numParam(payload.order, 7);
       postProgress(id, "training reference cortices", 1, 2);
 
       const clf = new FPCClassifier(alphabet, {
@@ -203,6 +214,11 @@ self.onmessage = (event) => {
         doubleStrandTrain: Boolean(payload.doubleStrandTrain),
       });
       clf.fit(refRecords.map((r) => ({ label: r.id, seq: r.seq })));
+      if (clf.classes.length < 2) {
+        throw new Error(
+          `Provide at least 2 distinct reference class labels (found ${clf.classes.length}: ${clf.classes.join(", ")})`
+        );
+      }
 
       postProgress(id, "scoring queries on +/- strands", 2, 2);
       const calls = clf.classifyRecords(queryRecords);
@@ -229,10 +245,10 @@ self.onmessage = (event) => {
     if (task === "predict") {
       const alphabet = getAlphabet(payload.alphabet || "DNA");
       const trainRecords = parseSequences(payload.trainText, {
-        minPhred: payload.minPhred || 0,
+        minPhred: numParam(payload.minPhred, 0),
         wildcard: alphabet.wildcard,
       });
-      const order = Number(payload.order || 7);
+      const order = numParam(payload.order, 7);
       const cortex = new FractalPredictiveCortex(alphabet, {
         order,
         maxPrototypes: defaultMaxPrototypes(alphabet, order),
@@ -254,10 +270,10 @@ self.onmessage = (event) => {
         trainRecords[0].seq.slice(Math.max(0, trainRecords[0].seq.length - 24));
       const prefixIds = alphabet.encode(prefix);
       const nextDist = Array.from(cortex.predictNext(prefixIds));
-      const genLen = Math.min(2000, Math.max(1, Number(payload.length || 120)));
+      const genLen = Math.min(2000, Math.max(1, Math.floor(numParam(payload.length, 120))));
       const genIds = cortex.generate(prefixIds, genLen, {
         sample: Boolean(payload.sample),
-        temperature: Number(payload.temperature || 1.0),
+        temperature: numParam(payload.temperature, 1.0),
       });
       const fullSeq = alphabet.decode(genIds);
       const continuation = fullSeq.slice(prefixIds.length);

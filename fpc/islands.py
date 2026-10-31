@@ -164,9 +164,21 @@ def _call_islands_from_bits(
     AT-rich or GC-rich compositional skew from masking foreign pathogenicity
     islands whose intrinsic 0th-order Shannon entropy ``H_0(W)`` is < 2 bits.
     """
+    if not np.isfinite(window) or int(window) < 1:
+        raise ValueError(f"window must be >= 1, got {window!r}")
+    if not np.isfinite(step) or int(step) < 1:
+        raise ValueError(f"step must be >= 1, got {step!r}")
+    if not np.isfinite(z_threshold):
+        raise ValueError(f"z_threshold must be finite, got {z_threshold!r}")
+    if not np.isfinite(alpha) or not (0.0 < float(alpha) <= 1.0):
+        raise ValueError(f"alpha must be in (0, 1], got {alpha!r}")
+    if not np.isfinite(merge_gap) or int(merge_gap) < 0:
+        raise ValueError(f"merge_gap must be >= 0, got {merge_gap!r}")
     window = max(10, int(window))
     step = max(1, int(step))
     eff_min_len = int(min_length) if min_length is not None else window
+    if eff_min_len < 1:
+        raise ValueError(f"min_length must be >= 1, got {min_length!r}")
 
     raw_windows: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
     all_valid_scores: list[np.ndarray] = []
@@ -364,6 +376,10 @@ def scan_against_reference(
         )
         for r in r_recs:
             cortex.fit(alphabet.encode(r.seq), epochs=epochs, double_strand=double_strand)
+    if cortex.n_prototypes == 0:
+        raise ValueError(
+            f"Reference sequence(s) contain 0 canonical {alphabet.name} symbols"
+        )
 
     q_encoded = [alphabet.encode(r.seq) for r in q_recs]
     q_bits = [cortex.score(ids).bits for ids in q_encoded]
@@ -405,6 +421,12 @@ def scan_self_islands(
     genome outside a ``guard_bp`` flanking buffer, ensuring 10-100 kb islands
     cannot memorise themselves into the background model.
     """
+    if not np.isfinite(n_folds) or int(n_folds) < 2:
+        raise ValueError(f"n_folds must be >= 2, got {n_folds!r}")
+    if not np.isfinite(guard_bp) or int(guard_bp) < 0:
+        raise ValueError(f"guard_bp must be >= 0, got {guard_bp!r}")
+    if not np.isfinite(window) or int(window) < 1:
+        raise ValueError(f"window must be >= 1, got {window!r}")
     q_recs = _coerce_records(query_records)
     q_encoded = [alphabet.encode(r.seq) for r in q_recs]
     eff_max_proto = (
@@ -417,6 +439,9 @@ def scan_self_islands(
     total_bp = sum(lengths)
     if total_bp == 0:
         raise ValueError("Query sequence(s) contain 0 bases")
+    total_canonical = sum(int(np.sum((ids >= 0) & (ids < alphabet.size))) for ids in q_encoded)
+    if total_canonical == 0:
+        raise ValueError(f"Query sequence(s) contain 0 canonical {alphabet.name} symbols")
 
     # Concatenate with wildcard spacer so contexts do not bleed across contigs
     spacer = np.full(max(1, order), alphabet.wildcard_id, dtype=np.int64)
@@ -434,7 +459,8 @@ def scan_self_islands(
     concat_ids = np.concatenate(pieces)
     concat_len = len(concat_ids)
 
-    eff_folds = max(2, min(int(n_folds), max(2, concat_len // max(200, window * 2))))
+    win_clamped = max(10, int(window))
+    eff_folds = max(2, min(int(n_folds), max(2, concat_len // max(200, win_clamped * 2))))
     eff_guard = min(int(guard_bp), concat_len // (2 * eff_folds))
     fold_edges = np.linspace(0, concat_len, eff_folds + 1, dtype=np.int64)
 

@@ -53,8 +53,14 @@ def read_fasta(path: str) -> list[Record]:
             if line.startswith(">"):
                 flush()
                 header = line[1:].strip()
+                if not header:
+                    raise ValueError("Malformed FASTA record: empty header after '>'")
                 chunks = []
             else:
+                if header is None:
+                    raise ValueError(
+                        f"Malformed FASTA input: expected '>' header, got {line[:40]!r}"
+                    )
                 chunks.append(line)
         flush()
     return records

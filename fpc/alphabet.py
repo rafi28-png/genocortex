@@ -63,10 +63,16 @@ class Alphabet:
     _rc_lut: np.ndarray | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
+        if len(self.symbols) == 0:
+            raise ValueError(f"alphabet {self.name!r} must contain at least 1 symbol")
+        if len(self.symbols) > 255:
+            raise ValueError(f"alphabet {self.name!r} exceeds 255 symbols ({len(self.symbols)})")
+        if not self.symbols.isascii():
+            raise ValueError(f"alphabet {self.name!r} symbols must be ASCII")
         if len(set(self.symbols)) != len(self.symbols):
             raise ValueError(f"duplicate symbols in alphabet {self.name!r}")
-        if len(self.wildcard) != 1:
-            raise ValueError("wildcard must be a single character")
+        if len(self.wildcard) != 1 or not self.wildcard.isascii():
+            raise ValueError("wildcard must be a single ASCII character")
         if self.wildcard in self.symbols:
             raise ValueError("wildcard must not be one of the canonical symbols")
 
@@ -79,9 +85,9 @@ class Alphabet:
         for ch, i in idx.items():
             o_up = ord(ch.upper())
             o_lo = ord(ch.lower())
-            if o_up < 256:
+            if o_up < 128:
                 lut[o_up] = i
-            if o_lo < 256:
+            if o_lo < 128:
                 lut[o_lo] = i
         object.__setattr__(self, "_encode_lut", lut)
 
@@ -130,11 +136,18 @@ class Alphabet:
         """
         if isinstance(seq, bytes):
             raw = np.frombuffer(seq, dtype=np.uint8)
-        else:
-            if not seq:
-                return np.empty(0, dtype=np.int32)
-            raw = np.frombuffer(seq.encode("ascii", "replace"), dtype=np.uint8)
-        return self._encode_lut[raw].copy()
+            return self._encode_lut[raw].copy()
+        if not seq:
+            return np.empty(0, dtype=np.int32)
+        if seq.isascii():
+            raw = np.frombuffer(seq.encode("ascii"), dtype=np.uint8)
+            return self._encode_lut[raw].copy()
+        lut = self._encode_lut
+        wid = self.wildcard_id
+        return np.array(
+            [int(lut[ord(ch)]) if ord(ch) < 128 else wid for ch in seq],
+            dtype=np.int32,
+        )
 
     def decode(self, ids) -> str:
         """Inverse of :pymeth:`encode` (wildcards render as ``self.wildcard``)."""

@@ -120,6 +120,11 @@ def _js_distance(p: np.ndarray, q: np.ndarray) -> float:
 
 def ffp_distance_matrix(sequences, alphabet: Alphabet = DNA, k: int = 6) -> np.ndarray:
     profiles = [_kmer_profile(s, alphabet, k) for s in sequences]
+    for idx, prof in enumerate(profiles):
+        if prof.sum() <= 0.0:
+            raise ValueError(
+                f"Sequence at index {idx} contains 0 canonical {k}-mers in {alphabet.name}"
+            )
     n = len(sequences)
     D = np.zeros((n, n))
     for i in range(n):

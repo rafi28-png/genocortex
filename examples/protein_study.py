@@ -30,6 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data", "proteins")
 OUT = os.path.join(ROOT, "output")
 os.makedirs(DATA, exist_ok=True)
+os.makedirs(OUT, exist_ok=True)
 
 FAMILIES = ["cytochrome c", "hemoglobin beta", "myoglobin", "lysozyme"]
 SPECIES = ["Homo sapiens", "Mus musculus", "Rattus norvegicus", "Bos taurus",

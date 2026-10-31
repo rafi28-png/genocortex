@@ -128,9 +128,35 @@ export function benjaminiHochberg(pValues, totalTests = null) {
 export class Alphabet {
   constructor(name, symbols, wildcard = "N", complements = null) {
     this.name = name;
-    this.symbols = symbols.toUpperCase();
-    this.wildcard = wildcard.toUpperCase();
+    this.symbols = String(symbols).toUpperCase();
+    this.wildcard = String(wildcard).toUpperCase();
     this.size = this.symbols.length;
+    if (this.size < 1 || this.size > 255) {
+      throw new RangeError(
+        `Alphabet ${this.name} must contain between 1 and 255 symbols (got ${this.size})`
+      );
+    }
+    if (this.wildcard.length !== 1 || this.wildcard.charCodeAt(0) >= 128) {
+      throw new RangeError(
+        `Alphabet ${this.name} wildcard must be a single ASCII character`
+      );
+    }
+    const seen = new Set();
+    for (let i = 0; i < this.size; i++) {
+      const ch = this.symbols[i];
+      if (ch.charCodeAt(0) >= 128) {
+        throw new RangeError(`Alphabet ${this.name} symbols must be ASCII characters`);
+      }
+      if (seen.has(ch)) {
+        throw new RangeError(`Alphabet ${this.name} contains duplicate symbols`);
+      }
+      seen.add(ch);
+    }
+    if (seen.has(this.wildcard)) {
+      throw new RangeError(
+        `Alphabet ${this.name} wildcard '${this.wildcard}' cannot also be in symbols`
+      );
+    }
     this.wildcardId = this.size;
     this.fullSize = this.size + 1;
     this.complements = complements;
@@ -162,7 +188,7 @@ export class Alphabet {
     const wild = this.wildcardId;
     for (let i = 0; i < n; i++) {
       const code = seq.charCodeAt(i);
-      out[i] = code < 256 ? lut[code] : wild;
+      out[i] = code < 128 ? lut[code] : wild;
     }
     return out;
   }
@@ -218,7 +244,11 @@ export class ChaosGameEmbedding {
     if (contraction === null || contraction === undefined) {
       this.r = a <= 4 ? 0.5 : Math.min(0.5, Math.sin(Math.PI / a));
     } else {
-      this.r = Number(contraction);
+      const rVal = Number(contraction);
+      if (!Number.isFinite(rVal) || rVal <= 0.0 || rVal >= 1.0) {
+        throw new RangeError("contraction must be in (0, 1)");
+      }
+      this.r = rVal;
     }
     this.centreX = 0.5;
     this.centreY = 0.5;
@@ -586,11 +616,13 @@ export class SurpriseTrack {
       let peakZ = -Infinity;
       let sumB = 0;
       let cntB = 0;
+      let sumS = 0;
       for (let t = i; t <= j; t++) {
         if (z[t] > peakZ) {
           peakZ = z[t];
           peakPos = t;
         }
+        sumS += s[t];
         if (!Number.isNaN(this.bits[t])) {
           sumB += this.bits[t];
           cntB++;
@@ -602,7 +634,7 @@ export class SurpriseTrack {
         end: j,
         peakPos,
         peakZ,
-        meanBits: cntB > 0 ? sumB / cntB : NaN,
+        meanBits: cntB > 0 ? sumB / cntB : sumS / (j - i + 1),
         pValue: pVal,
         significant: pVal <= pCut,
         qValue: 1.0,
@@ -1236,9 +1268,27 @@ function callIslandsFromBits(
     normalizeEntropy = true,
   } = {}
 ) {
+  if (!Number.isFinite(window) || window < 1) {
+    throw new RangeError("window must be a finite number >= 1");
+  }
+  if (!Number.isFinite(step) || step < 1) {
+    throw new RangeError("step must be a finite number >= 1");
+  }
+  if (!Number.isFinite(zThreshold)) {
+    throw new RangeError("zThreshold must be finite");
+  }
+  if (!Number.isFinite(alpha) || alpha <= 0.0 || alpha > 1.0) {
+    throw new RangeError("alpha must be in (0, 1]");
+  }
+  if (!Number.isFinite(mergeGap) || mergeGap < 0) {
+    throw new RangeError("mergeGap must be >= 0");
+  }
   const win = Math.max(10, Math.floor(window));
   const stp = Math.max(1, Math.floor(step));
   const effMinLen = minLength !== null ? Math.floor(minLength) : win;
+  if (!Number.isFinite(effMinLen) || effMinLen < 1) {
+    throw new RangeError("minLength must be >= 1");
+  }
   const isNuc = alphabet.size === 4 && alphabet.symbols.includes("G") && alphabet.symbols.includes("C");
   const gId = isNuc ? alphabet.symbols.indexOf("G") : -1;
   const cId = isNuc ? alphabet.symbols.indexOf("C") : -1;
@@ -1474,6 +1524,9 @@ export function scanAgainstReference(
         : null,
     });
   }
+  if (cortex.nPrototypes === 0) {
+    throw new Error("Reference sequence contains 0 canonical symbols");
+  }
   const qEncoded = queryRecords.map((r) => alphabet.encode(r.seq));
   const qBits = qEncoded.map((ids) =>
     cortex.score(ids, onProgress ? (done, tot) => onProgress("scanning query", done, tot) : null).bits
@@ -1509,15 +1562,31 @@ export function scanSelfIslands(
     onProgress = null,
   } = {}
 ) {
+  if (!Number.isFinite(nFolds) || nFolds < 2) {
+    throw new RangeError("nFolds must be >= 2");
+  }
+  if (!Number.isFinite(guardBp) || guardBp < 0) {
+    throw new RangeError("guardBp must be >= 0");
+  }
+  if (!Number.isFinite(window) || window < 1) {
+    throw new RangeError("window must be a finite number >= 1");
+  }
   const effMax = maxPrototypes ?? defaultMaxPrototypes(alphabet, order);
   const qEncoded = queryRecords.map((r) => alphabet.encode(r.seq));
   const spacerLen = Math.max(1, order);
   let concatLen = 0;
+  let totalCanonical = 0;
   for (let i = 0; i < qEncoded.length; i++) {
     if (i > 0) concatLen += spacerLen;
-    concatLen += qEncoded[i].length;
+    const ids = qEncoded[i];
+    concatLen += ids.length;
+    for (let k = 0; k < ids.length; k++) {
+      if (ids[k] < alphabet.size) totalCanonical++;
+    }
   }
-  if (concatLen === 0) throw new Error("Query sequence contains 0 bases");
+  if (concatLen === 0 || totalCanonical === 0) {
+    throw new Error("Query sequence contains 0 canonical symbols");
+  }
 
   const concatIds = new Int32Array(concatLen);
   concatIds.fill(alphabet.wildcardId);
@@ -1531,8 +1600,11 @@ export function scanSelfIslands(
     offsets.push([s, cursor]);
   }
 
-  const effFolds = Math.max(2, Math.min(nFolds, Math.max(2, Math.floor(concatLen / Math.max(200, window * 2)))));
-  const effGuard = Math.min(guardBp, Math.floor(concatLen / (2 * effFolds)));
+  const effFolds = Math.max(
+    2,
+    Math.min(Math.floor(nFolds), Math.max(2, Math.floor(concatLen / Math.max(200, window * 2))))
+  );
+  const effGuard = Math.min(Math.floor(guardBp), Math.floor(concatLen / (2 * effFolds)));
   const oofBits = new Float64Array(concatLen);
   oofBits.fill(NaN);
   const ctxPad = Math.max(1, order);
@@ -1652,6 +1724,9 @@ export class FPCClassifier {
   }
 
   fit(recordsWithLabels) {
+    if (!recordsWithLabels || recordsWithLabels.length === 0) {
+      throw new Error("FPCClassifier.fit requires at least one training sequence");
+    }
     const byLabel = new Map();
     for (const item of recordsWithLabels) {
       if (!byLabel.has(item.label)) byLabel.set(item.label, []);
@@ -1664,11 +1739,19 @@ export class FPCClassifier {
         order: this.order,
         maxPrototypes: this.maxPrototypes,
       });
+      let canonicalTotal = 0;
       for (const seq of byLabel.get(lab)) {
-        cortex.fit(this.alphabet.encode(seq), {
+        const ids = this.alphabet.encode(seq);
+        for (let k = 0; k < ids.length; k++) {
+          if (ids[k] < this.alphabet.size) canonicalTotal++;
+        }
+        cortex.fit(ids, {
           epochs: this.epochs,
           doubleStrand: this.doubleStrandTrain && this.alphabet.isComplementary,
         });
+      }
+      if (canonicalTotal === 0) {
+        throw new Error(`Class '${lab}' contains 0 canonical symbols`);
       }
       this.models.set(lab, cortex);
     }

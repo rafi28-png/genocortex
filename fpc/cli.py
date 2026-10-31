@@ -457,9 +457,32 @@ def _cmd_predict(args: argparse.Namespace) -> int:
 
     if args.eval:
         eval_recs = read_sequences(args.eval, wildcard=alphabet.wildcard)
-        joined = "".join(r.seq for r in eval_recs)
-        metrics = tasks.evaluate_prediction(cortex, joined)
-        sys.stdout.write(json.dumps(metrics, indent=2) + "\n")
+        total_hits = 0.0
+        total_bits = 0.0
+        total_n = 0
+        for rec in eval_recs:
+            ev = tasks.evaluate_prediction(cortex, rec.seq)
+            rec_n = int(ev["n"])
+            if rec_n > 0:
+                total_hits += float(ev["accuracy"]) * rec_n
+                total_bits += float(ev["cross_entropy"]) * rec_n
+                total_n += rec_n
+        if total_n > 0:
+            mean_ce = total_bits / total_n
+            metrics = {
+                "accuracy": total_hits / total_n,
+                "cross_entropy": mean_ce,
+                "perplexity": float(2.0 ** mean_ce),
+                "n": total_n,
+            }
+        else:
+            metrics = {
+                "accuracy": None,
+                "cross_entropy": None,
+                "perplexity": None,
+                "n": 0,
+            }
+        sys.stdout.write(json.dumps(metrics, indent=2, allow_nan=False) + "\n")
         return 0
 
     if not args.prefix:

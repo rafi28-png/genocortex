@@ -169,7 +169,7 @@ docs/               Live GitHub Pages browser workbench + research manuscript
 viz/                Standalone offline 3-D HTML cognitive maps & phylogeny constellations
 benchmarks/         Baselines (Markov, gzip, k-mer, Mash, FFP, NRC, NCCD) & statistical tests
 examples/           Reproducible real-genome studies (coronaviruses, 28-virus panel, proteins, 10.14 Mb E. coli)
-tests/              39 unit, C/NumPy/JS bit-parity, buffer-safety, bioinformatics I/O, NJ, island, and CLI tests
+tests/              42 unit, C/NumPy/JS bit-parity, buffer-safety, bioinformatics I/O, NJ, island, and CLI tests
 paper/              Manuscript (paper.md, cross-platform build_pdf.py, cover_letter.md)
 ```
 

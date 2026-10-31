@@ -874,3 +874,205 @@ def test_mask_low_quality_non_ascii_and_baselines_and_isolated_imports(tmp_path)
 
 
 
+
+
+def test_alphabet_validation_and_c_kernel_nan_guards():
+    from fpc import Alphabet, _fast
+
+    with pytest.raises(ValueError, match="at least 1 symbol"):
+        Alphabet("EMPTY", "")
+    with pytest.raises(ValueError, match="single ASCII"):
+        Alphabet("BADW", "ACGT", wildcard="NN")
+    with pytest.raises(ValueError, match="duplicate"):
+        Alphabet("DUP", "AACG")
+    with pytest.raises(ValueError, match="wildcard"):
+        Alphabet("COLLIDE", "ACGTN", wildcard="N")
+
+    q_alpha = Alphabet("Q", "AB?", wildcard="*")
+    assert q_alpha.encode("A\ufffdB?").tolist() == [0, 3, 1, 2]
+
+    cx = FractalPredictiveCortex(DNA)
+    verts = np.ascontiguousarray(cx.embedding._all_vertices, dtype=np.float64)
+    ids1 = np.array([0], dtype=np.int64)
+    out1 = np.zeros((1, 2), dtype=np.float64)
+    with pytest.raises(ValueError, match="cgr_embed"):
+        _fast.cgr_embed(ids1, verts, 0.5, 0.5, float("nan"), out1)
+
+    C1 = np.zeros((1, 2), dtype=np.float64)
+    X1 = np.zeros((4, 2), dtype=np.float64)
+    N1 = np.zeros((4, 4), dtype=np.float64)
+    gc = np.ones(4, dtype=np.float64)
+    bits1 = np.zeros(1, dtype=np.float64)
+    cx_nan = FractalPredictiveCortex(DNA, use_fast=True)
+    cx_nan.sigma = float("nan")
+    with pytest.raises(ValueError, match="cortex_stream"):
+        cx_nan.fit(ids1)
+    with pytest.raises(ValueError, match="cortex_score_batch"):
+        _fast.cortex_score_batch(
+            ids1, C1, X1, N1, gc, bits1, 4, 1, 1, float("nan"), 0.5, 0.02
+        )
+    with pytest.raises(ValueError, match="cortex_score_batch"):
+        _fast.cortex_score_batch(
+            ids1, C1, X1, N1, gc, bits1, 4, 1, 1, 0.1, 0.5, 1.5
+        )
+
+
+def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_path):
+    import re
+    import warnings
+
+    if REPO_ROOT not in sys.path:
+        sys.path.insert(0, REPO_ROOT)
+    from benchmarks.afbaselines import ffp_distance_matrix
+    from fpc import io_fasta
+    from fpc.surprise import SurpriseTrack
+    from viz.viz3d import phylogeny_3d_html
+
+    # 1. Wildcard-bridged anomaly spike produces finite mean_bits with zero RuntimeWarnings
+    arr = np.array(
+        [1.0] * 20 + [1.0, 1.0, 10.0, np.nan, np.nan, 10.0, 1.0, 1.0] + [1.0] * 20,
+        dtype=np.float64,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        anoms = SurpriseTrack(arr).anomalies(window=5, z_threshold=3.5)
+    assert len(anoms) >= 1 and all(np.isfinite(a.mean_bits) for a in anoms)
+
+    # 2. CLI predict --eval scores multi-record FASTA independently and emits valid RFC-8259 JSON on all-N
+    tr_fa = tmp_path / "tr.fa"
+    ev_fa = tmp_path / "ev.fa"
+    n_fa = tmp_path / "alln.fa"
+    r1_seq = "ACGT" * 25
+    r2_seq = "ACGT" * 25
+    io_seq.write_fasta(str(tr_fa), [("tr", "ACGT" * 200 + "TTTT" * 200)])
+    io_seq.write_fasta(str(ev_fa), [("r1", r1_seq + "TTTT"), ("r2", r2_seq)])
+    io_seq.write_fasta(str(n_fa), [("n1", "NNNNNNNN")])
+
+    cx = FractalPredictiveCortex(DNA, order=6)
+    cx.fit(DNA.encode("ACGT" * 200 + "TTTT" * 200))
+    b1 = tasks.evaluate_prediction(cx, r1_seq + "TTTT")
+    b2 = tasks.evaluate_prediction(cx, r2_seq)
+    expected_ce = (b1["cross_entropy"] * b1["n"] + b2["cross_entropy"] * b2["n"]) / (
+        b1["n"] + b2["n"]
+    )
+    res_ev = subprocess.run(
+        [sys.executable, "-m", "fpc", "predict", "--train", str(tr_fa), "--eval", str(ev_fa), "-k", "6"],
+        cwd=REPO_ROOT, text=True, capture_output=True, check=True,
+    )
+    ev_json = json.loads(res_ev.stdout)
+    assert ev_json["cross_entropy"] == pytest.approx(expected_ce, rel=1e-12)
+
+    res_n = subprocess.run(
+        [sys.executable, "-m", "fpc", "predict", "--train", str(tr_fa), "--eval", str(n_fa), "-k", "6"],
+        cwd=REPO_ROOT, text=True, capture_output=True, check=True,
+    )
+    n_json = json.loads(res_n.stdout)
+    assert n_json["n"] == 0 and n_json["cross_entropy"] is None and n_json["accuracy"] is None
+
+    # 3. FPCClassifier.predict on all-N returns UNCLASSIFIED and fit rejects invalid classes/lengths
+    clf = tasks.FPCClassifier(DNA, order=4).fit(["AAAA" * 50, "CCCC" * 50], ["sp_a", "sp_c"])
+    assert clf.predict(["NNNNNNNN", "AAAA" * 20]) == ["UNCLASSIFIED", "sp_a"]
+    with pytest.raises(ValueError, match="length"):
+        tasks.FPCClassifier(DNA).fit(["ACGT" * 20], ["a", "b"])
+    with pytest.raises(ValueError, match="0 canonical"):
+        tasks.FPCClassifier(DNA).fit(["ACGT" * 20, "NNNNNNNN"], ["a", "b"])
+
+    # 4. viz3d phylogeny_3d_html preserves 0.0-distance MST edges between identical taxa
+    D_zero = np.array([[0.0, 0.0, 0.8], [0.0, 0.0, 0.8], [0.8, 0.8, 0.0]], dtype=np.float64)
+    coords_zero = np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]], dtype=np.float64)
+    html_p = tmp_path / "phylo.html"
+    phylogeny_3d_html(
+        coords_zero, ["g1", "g1", "g2"], str(html_p),
+        names=["t1", "t2", "t3"], distance_matrix=D_zero,
+    )
+    html_txt = html_p.read_text(encoding="utf-8")
+    assert "lineage (MST)" in html_txt
+    assert "[10.0,20.0,null,10.0,30.0,null]" in html_txt.replace(" ", "")
+
+    # 5. io_fasta rejects non-FASTA / empty headers; datasets RNA gc & empty host; ffp all-zero k-mers; islands guard_bp
+    bad_fq = tmp_path / "bad.fq"
+    bad_fq.write_text("@r1\nACGT\n+\nIIII\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Malformed FASTA"):
+        io_fasta.read_fasta(str(bad_fq))
+
+    rna_seq = datasets.random_sequence(4000, RNA, gc=0.85, seed=7)
+    rna_gc = (rna_seq.count("G") + rna_seq.count("C")) / len(rna_seq)
+    assert 0.80 <= rna_gc <= 0.90
+    chim, bounds = datasets.insert_foreign("", "ACGT", seed=1)
+    assert chim == "ACGT" and bounds == (0, 3)
+
+    with pytest.raises(ValueError, match="0 canonical"):
+        ffp_distance_matrix(["AAAA", "TTTT"], DNA, k=6)
+    with pytest.raises(ValueError, match="guard_bp"):
+        islands.scan_self_islands([("c1", "ACGT" * 500)], guard_bp=-10)
+    with pytest.raises(ValueError, match="0 canonical"):
+        islands.scan_against_reference([("ref", "NNNNNNNN")], [("q", "ACGT" * 500)])
+
+
+def test_js_engine_and_worker_edge_case_validations():
+    node_bin = _find_node()
+    if not node_bin:
+        pytest.skip("Node.js runtime not installed")
+
+    js_code = r"""
+    import * as fpc from "./docs/fpc-engine.js";
+
+    let checks = 0;
+    try { new fpc.Alphabet("E", ""); } catch (e) { if (e instanceof RangeError) checks++; }
+    try { new fpc.Alphabet("D", "AACG"); } catch (e) { if (e instanceof RangeError) checks++; }
+    try { new fpc.Alphabet("W", "ACGT", "A"); } catch (e) { if (e instanceof RangeError) checks++; }
+    try { new fpc.ChaosGameEmbedding(fpc.DNA, 1.5); } catch (e) { if (e instanceof RangeError) checks++; }
+    try { new fpc.ChaosGameEmbedding(fpc.DNA, NaN); } catch (e) { if (e instanceof RangeError) checks++; }
+    try { fpc.scanSelfIslands([{ id: "c", seq: "ACGT".repeat(300) }], { window: NaN }); }
+    catch (e) { if (e instanceof RangeError) checks++; }
+    try { fpc.scanSelfIslands([{ id: "c", seq: "ACGT".repeat(300) }], { guardBp: -5 }); }
+    catch (e) { if (e instanceof RangeError) checks++; }
+    try { fpc.scanAgainstReference([{ id: "r", seq: "NNNNNN" }], [{ id: "q", seq: "ACGT".repeat(200) }]); }
+    catch (e) { checks++; }
+    try { new fpc.FPCClassifier(fpc.DNA).fit([{ label: "a", seq: "NNNN" }, { label: "b", seq: "ACGT".repeat(50) }]); }
+    catch (e) { checks++; }
+
+    const qAlpha = new fpc.Alphabet("Q", "AB?", "*");
+    const enc = Array.from(qAlpha.encode("A\u00ffB?"));
+
+    const arr = new Float64Array(48);
+    arr.fill(1.0);
+    arr[22] = 10.0; arr[23] = NaN; arr[24] = NaN; arr[25] = 10.0;
+    const anoms = new fpc.SurpriseTrack(arr).anomalies(5, 3.5);
+    const anomFinite = anoms.length >= 1 && anoms.every(a => Number.isFinite(a.meanBits));
+
+    const msgs = [];
+    globalThis.self = { postMessage: (m) => msgs.push(m), onmessage: null };
+    await import("./docs/fpc-worker.js");
+
+    self.onmessage({ data: { id: 101, task: "predict", payload: {
+      alphabet: "DNA", order: 0, trainText: ">tr\n" + "ACGT".repeat(200), prefix: "ACGT", length: 8, sample: false
+    }}});
+    self.onmessage({ data: { id: 102, task: "classify", payload: {
+      alphabet: "DNA", order: 5, minPhred: 0, strandAware: true,
+      refText: ">dup\n" + "ACGT".repeat(100) + "\n>dup\n" + "TTTT".repeat(100),
+      queryText: ">q1\nACGTACGT"
+    }}});
+    const m101 = msgs.find(m => m.id === 101 && m.type === "result");
+    const m102 = msgs.find(m => m.id === 102 && m.type === "error");
+    process.stdout.write(JSON.stringify({
+      checks,
+      enc,
+      anomFinite,
+      order0Protos: m101 ? m101.result.nPrototypes : -1,
+      dupRejected: Boolean(m102 && m102.message && m102.message.includes("distinct")),
+    }));
+    """
+    proc = subprocess.run(
+        [node_bin, "--input-type=module", "-e", js_code],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    out = json.loads(proc.stdout)
+    assert out["checks"] == 9
+    assert out["enc"] == [0, 3, 1, 2]
+    assert out["anomFinite"] is True
+    assert out["order0Protos"] == 1
+    assert out["dupRejected"] is True

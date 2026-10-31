@@ -659,20 +659,28 @@ function initWorkbench() {
     setStatus("Loaded 24 kb chimeric chromosome + 19.2 kb core reference", "ok");
   });
 
+  function readNumInput(id, fallback) {
+    const raw = document.getElementById(id).value.trim();
+    if (raw === "") return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
   document.getElementById("wb-scan-run").addEventListener("click", async () => {
     try {
-      const zThreshold = Number(document.getElementById("wb-scan-z").value || 3.2);
+      const zThreshold = readNumInput("wb-scan-z", 3.2);
+      const winVal = readNumInput("wb-scan-win", 500);
       setStatus("Starting Web Worker island scan...", "busy");
       const res = await runWorkerTask(
         "scan",
         {
           alphabet: document.getElementById("wb-scan-alpha").value,
-          order: Number(document.getElementById("wb-scan-order").value || 7),
-          window: Number(document.getElementById("wb-scan-win").value || 500),
-          step: Math.max(1, Math.floor(Number(document.getElementById("wb-scan-win").value || 500) / 4)),
-          mergeGap: Number(document.getElementById("wb-scan-win").value || 500) * 2,
+          order: readNumInput("wb-scan-order", 7),
+          window: winVal,
+          step: Math.max(1, Math.floor(winVal / 4)),
+          mergeGap: winVal * 2,
           zThreshold,
-          minPhred: Number(document.getElementById("wb-scan-phred").value || 0),
+          minPhred: readNumInput("wb-scan-phred", 0),
           queryText: scanQueryEl.value,
           refText: scanRefEl.value,
         },
@@ -780,7 +788,7 @@ function initWorkbench() {
         "tree",
         {
           alphabet: document.getElementById("wb-tree-alpha").value,
-          order: Number(document.getElementById("wb-tree-order").value || 6),
+          order: readNumInput("wb-tree-order", 6),
           strandInvariant: document.getElementById("wb-tree-strand").checked,
           fastaText: treeFastaEl.value,
         },
@@ -868,8 +876,8 @@ function initWorkbench() {
         "classify",
         {
           alphabet: document.getElementById("wb-clf-alpha").value,
-          order: Number(document.getElementById("wb-clf-order").value || 7),
-          minPhred: Number(document.getElementById("wb-clf-phred").value || 20),
+          order: readNumInput("wb-clf-order", 7),
+          minPhred: readNumInput("wb-clf-phred", 20),
           strandAware: document.getElementById("wb-clf-strand").checked,
           refText: clfRefsEl.value,
           queryText: clfQueriesEl.value,
@@ -924,10 +932,10 @@ function initWorkbench() {
       setStatus("Learning sequence & predicting continuation...", "busy");
       const res = await runWorkerTask("predict", {
         alphabet: document.getElementById("wb-pred-alpha").value,
-        order: Number(document.getElementById("wb-pred-order").value || 7),
+        order: readNumInput("wb-pred-order", 7),
         trainText: predTrainEl.value,
         prefix: document.getElementById("wb-pred-prefix").value,
-        length: Number(document.getElementById("wb-pred-len").value || 120),
+        length: readNumInput("wb-pred-len", 120),
         sample: document.getElementById("wb-pred-stochastic").checked,
       });
       document.getElementById("wb-pred-results").hidden = false;
