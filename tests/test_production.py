@@ -924,7 +924,7 @@ def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_pa
     if REPO_ROOT not in sys.path:
         sys.path.insert(0, REPO_ROOT)
     from benchmarks.afbaselines import ffp_distance_matrix
-    from fpc import io_fasta
+    from fpc import cli, io_fasta
     from fpc.surprise import SurpriseTrack
     from viz.viz3d import phylogeny_3d_html
 
@@ -1022,6 +1022,18 @@ def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_pa
     with pytest.raises(ValueError, match="non-finite"):
         tasks.cluster(np.array([[0.0, np.nan], [np.nan, 0.0]]), 2)
 
+    # 7. SurpriseTrack.smoothed() on empty and short (n < window) tracks, write_distance_tsv validation, and conflicting CLI flags
+    assert len(SurpriseTrack([]).smoothed(25)) == 0
+    assert SurpriseTrack([]).anomalies(25) == []
+    sm_short = SurpriseTrack(np.ones(10, dtype=np.float64)).smoothed(25)
+    assert len(sm_short) == 10 and np.allclose(sm_short, 1.0)
+    assert tasks.detect_anomalies("", DNA, window=25).anomalies == []
+    with pytest.raises(ValueError, match="square"):
+        phylo.write_distance_tsv(np.zeros(2), ["a", "b"], str(tmp_path / "bad.tsv"))
+    assert cli.main(["train", str(tr_fa), "-o", str(tmp_path / "m.npz"), "--by-file", "--by-record"]) == 2
+    assert cli.main(["tree", str(tr_fa), "--per-file", "--per-record"]) == 2
+    assert cli.main(["scan", str(tr_fa), "--double-strand", "--single-strand"]) == 2
+
 
 def test_js_engine_and_worker_edge_case_validations():
     node_bin = _find_node()
@@ -1045,6 +1057,8 @@ def test_js_engine_and_worker_edge_case_validations():
     catch (e) { checks++; }
     try { new fpc.FPCClassifier(fpc.DNA).fit([{ label: "a", seq: "NNNN" }, { label: "b", seq: "ACGT".repeat(50) }]); }
     catch (e) { checks++; }
+    try { fpc.formatDistanceTsv([[0], [0]], ["a", "b"]); }
+    catch (e) { if (e.message.includes("square")) checks++; }
 
     const qAlpha = new fpc.Alphabet("Q", "AB?", "*");
     const enc = Array.from(qAlpha.encode("A\u00ffB?"));
@@ -1085,8 +1099,9 @@ def test_js_engine_and_worker_edge_case_validations():
     )
     assert proc.returncode == 0, proc.stderr
     out = json.loads(proc.stdout)
-    assert out["checks"] == 9
+    assert out["checks"] == 10
     assert out["enc"] == [0, 3, 1, 2]
     assert out["anomFinite"] is True
     assert out["order0Protos"] == 1
     assert out["dupRejected"] is True
+

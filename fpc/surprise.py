@@ -120,13 +120,24 @@ class SurpriseTrack:
         NaNs are handled by averaging only the valid samples inside each window
         (so a run of wildcards does not create a fake dip).
         """
+        n = len(self.bits)
+        if n == 0:
+            return np.empty(0, dtype=np.float64)
+        w = max(1, int(window))
         b = np.where(self.valid, self.bits, 0.0)
-        w = self.valid.astype(np.float64)
-        if window < 1:
-            window = 1
-        kernel = np.ones(window, dtype=np.float64)
-        num = np.convolve(b, kernel, mode="same")
-        den = np.convolve(w, kernel, mode="same")
+        v = self.valid.astype(np.int64)
+        cs_b = np.empty(n + 1, dtype=np.float64)
+        cs_v = np.empty(n + 1, dtype=np.int64)
+        cs_b[0] = 0.0
+        cs_v[0] = 0
+        np.cumsum(b, out=cs_b[1:])
+        np.cumsum(v, out=cs_v[1:])
+        start_ind = (w - 1) // 2
+        idx = np.arange(n, dtype=np.int64)
+        lo = np.clip(idx + start_ind - (w - 1), 0, n)
+        hi = np.clip(idx + start_ind + 1, 0, n)
+        num = cs_b[hi] - cs_b[lo]
+        den = cs_v[hi] - cs_v[lo]
         with np.errstate(invalid="ignore", divide="ignore"):
             out = np.where(den > 0, num / den, np.nan)
         return out

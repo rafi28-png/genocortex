@@ -59,6 +59,10 @@ def _expand_input_files(paths: list[str]) -> list[str]:
 #  Subcommand implementations                                           #
 # ===================================================================== #
 def _cmd_train(args: argparse.Namespace) -> int:
+    if args.by_file and args.by_record:
+        raise ValueError("Specify at most one of --by-file or --by-record")
+    if args.double_strand and args.single_strand:
+        raise ValueError("Specify at most one of --double-strand or --single-strand")
     alphabet = get_alphabet(args.alphabet)
     t0 = time.perf_counter()
     files = _expand_input_files(args.inputs)
@@ -151,6 +155,8 @@ def _cmd_train(args: argparse.Namespace) -> int:
 def _cmd_scan(args: argparse.Namespace) -> int:
     if args.ref and args.model:
         raise ValueError("Specify either --ref or --model, not both")
+    if args.double_strand and args.single_strand:
+        raise ValueError("Specify at most one of --double-strand or --single-strand")
 
     t0 = time.perf_counter()
     model_path = args.model
@@ -275,6 +281,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 
 def _cmd_classify(args: argparse.Namespace) -> int:
+    if args.by_file and args.by_record:
+        raise ValueError("Specify at most one of --by-file or --by-record")
+    if args.double_strand and args.single_strand:
+        raise ValueError("Specify at most one of --double-strand or --single-strand")
     ref_inputs = args.refs or args.train_refs
     if bool(args.model) == bool(ref_inputs):
         raise ValueError("Specify exactly one of --model <panel.fpc.npz> or --refs/--train <fasta...>")
@@ -360,6 +370,8 @@ def _cmd_classify(args: argparse.Namespace) -> int:
 
 
 def _cmd_tree(args: argparse.Namespace) -> int:
+    if args.per_file and args.per_record:
+        raise ValueError("Specify at most one of --per-file or --per-record")
     alphabet = get_alphabet(args.alphabet)
     t0 = time.perf_counter()
     files = _expand_input_files(args.inputs)

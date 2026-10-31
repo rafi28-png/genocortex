@@ -2092,10 +2092,19 @@ export function neighborJoining(D, names, { clampNegative = true, precision = 6 
 }
 
 export function formatDistanceTsv(D, names, precision = 6) {
+  if (!Array.isArray(D) || D.length !== names.length) {
+    throw new Error("Distance matrix and names length mismatch");
+  }
+  const n = names.length;
+  for (let i = 0; i < n; i++) {
+    if (!D[i] || D[i].length !== n) {
+      throw new Error("Distance matrix must be square 2-D");
+    }
+  }
   const lines = ["taxon\t" + names.join("\t")];
-  for (let i = 0; i < names.length; i++) {
+  for (let i = 0; i < n; i++) {
     const vals = [];
-    for (let j = 0; j < names.length; j++) vals.push(D[i][j].toFixed(precision));
+    for (let j = 0; j < n; j++) vals.push(D[i][j].toFixed(precision));
     lines.push(`${names[i]}\t${vals.join("\t")}`);
   }
   return lines.join("\n") + "\n";

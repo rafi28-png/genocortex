@@ -238,6 +238,8 @@ def write_distance_tsv(
 ) -> None:
     """Write a labeled symmetric distance matrix as tab-separated values."""
     mat = np.asarray(D, dtype=np.float64)
+    if mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError(f"Distance matrix must be square 2-D, got shape {mat.shape}")
     n = mat.shape[0]
     if len(names) != n:
         raise ValueError(f"Expected {n} names, got {len(names)}")
