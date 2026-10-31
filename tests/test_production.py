@@ -1034,6 +1034,16 @@ def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_pa
     assert cli.main(["tree", str(tr_fa), "--per-file", "--per-record"]) == 2
     assert cli.main(["scan", str(tr_fa), "--double-strand", "--single-strand"]) == 2
 
+    paper_md = os.path.join(REPO_ROOT, "paper", "paper.md")
+    with open(paper_md, encoding="utf-8") as fh:
+        paper_txt = fh.read()
+    img_srcs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", paper_txt)
+    assert len(img_srcs) == 11
+    for rel_src in img_srcs:
+        assert not rel_src.startswith("../output/"), f"Untracked image path in paper.md: {rel_src}"
+        abs_img = os.path.normpath(os.path.join(REPO_ROOT, "paper", rel_src))
+        assert os.path.isfile(abs_img), f"Missing figure referenced by paper.md: {abs_img}"
+
 
 def test_js_engine_and_worker_edge_case_validations():
     node_bin = _find_node()

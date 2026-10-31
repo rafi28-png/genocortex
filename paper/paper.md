@@ -252,7 +252,7 @@ coding, and is, to our knowledge, the novel element of the method.
   generation, per-symbol log-loss for evaluation.
 * **Detect.** The per-position surprise trace, smoothed and converted to a
   robust z-score (median/MAD) with a per-region Gaussian p-value and a Bonferroni
-  correction; spikes are candidate mutations, inserts, or contamination. A
+  and Benjamini–Hochberg FDR correction; spikes are candidate mutations, inserts, or contamination. A
   reference brain (trained on a reference genome) flags stretches of a query it
   cannot explain.
 * **Classify.** Train one cortex per class; label a query by *which brain is
@@ -302,7 +302,7 @@ it must; FPC (0.38) stays close and beats gzip (0.62). **Takeaway:** FPC is a
 solid general-purpose model that needs no order selection, not a record-setting
 compressor.
 
-![Fig 1](../output/figures/fig1_compression.png)
+![Fig 1](../docs/img/fig1_compression.png)
 
 ### 3.2 Prediction (Fig. 2)
 
@@ -311,7 +311,7 @@ within ~1–3 points across three orders of magnitude of training data (FPC
 0.83→0.89; Markov-6 0.86→0.90), i.e. competitive prediction from the same model
 that does everything else.
 
-![Fig 2](../output/figures/fig2_prediction.png)
+![Fig 2](../docs/img/fig2_prediction.png)
 
 ### 3.3 Classification of short reads (Fig. 3)
 
@@ -321,7 +321,7 @@ down to **150 bp**; the k-mer baselines are strong but slip at short lengths
 (1-NN 0.97, logistic 0.94 at 150 bp). The generative "least-surprised" rule uses
 the full learned model, so it degrades more gracefully as reads shorten.
 
-![Fig 3](../output/figures/fig3_classification.png)
+![Fig 3](../docs/img/fig3_classification.png)
 
 ### 3.4 Unsupervised phylogenetics — statistically rigorous (Figs. 4, 9)
 
@@ -340,9 +340,9 @@ prior-art distances FPC's own distance re-derives — on controlled phylogenies*
 not superiority; the earlier single-tree "win" held up only against the *weak*
 k-mer-cosine baseline.
 
-![Fig 4](../output/figures/fig4_phylogeny.png)
+![Fig 4](../docs/img/fig4_phylogeny.png)
 
-![Fig 9](../output/figures/fig8_phylo_stats.png)
+![Fig 9](../docs/img/fig8_phylo_stats.png)
 
 ### 3.5 Foreign-insert detection (Fig. 5)
 
@@ -353,7 +353,7 @@ FPC matches a strong, standard detector. FPC's added value is qualitative —
 calibrated per-position bits with p-values, point-mutation localisation, and a
 reference-free self-detection mode — rather than a higher AUC here.
 
-![Fig 5](../output/figures/fig5_detection_roc.png)
+![Fig 5](../docs/img/fig5_detection_roc.png)
 
 ### 3.6 Real genomes: seven coronaviruses (`examples/real_genomes.py`)
 
@@ -363,8 +363,8 @@ HCoV-NL63; ~27–31 kb each) with known taxonomy.
 
 * **Compression.** All k-mer models sit near 2.0 bits/base on real viral DNA —
   coronavirus genomes are close to incompressible at short range (their signal
-  is codon- and protein-level). FPC (2.003) still beats gzip (2.525) and the
-  higher-order Markov models; it matches Markov-2 (1.95). Honest conclusion:
+  is codon- and protein-level). FPC (2.002) still beats gzip (2.525) and the
+  higher-order Markov models; it matches Markov-2 (1.952). Honest conclusion:
   little short-range redundancy exists to exploit, and FPC extracts about as
   much as any k-mer method while beating a general compressor.
 
@@ -386,7 +386,7 @@ HCoV-NL63; ~27–31 kb each) with known taxonomy.
   ROC-AUC = 1.000. The lesson — absolute surprise needs a compressible host,
   relative surprise does not — is itself a useful contribution.
 
-![Fig 6](../output/real_phylogeny.png)
+![Fig 6](../docs/img/real_phylogeny.png)
 
 ### 3.7 A larger real-genome study: 28 genomes, five families (`examples/big_study.py`)
 
@@ -419,17 +419,17 @@ FPC is competitive but not superior. Where FPC's geometry holds parity is
 *fine / recent* structure (the correct within-family pairings above) — together
 with the unification and the 3-D map that no single-purpose baseline provides.
 
-![Fig 7](../output/figures/fig7_big_dendrogram.png)
+![Fig 7](../docs/img/fig7_big_dendrogram.png)
 
-![Fig 8](../output/big_phylogeny.png)
+![Fig 8](../docs/img/big_phylogeny.png)
 
 ### 3.8 Real proteins: the same engine on a 20-letter alphabet (`examples/protein_study.py`)
 
 FPC's core claim is that it is alphabet-agnostic. We test it on **40 real
 proteins** (fetched from NCBI) spanning four families — cytochrome c, haemoglobin
-β, myoglobin, lysozyme (82–200 aa) — with a *one-line* change (`DNA → PROTEIN`).
-Family classification: FPC 0.75 vs. a 3-mer + 1-NN baseline 0.85; family
-clustering purity: FPC 0.525 vs. FFP 0.400 (chance 0.25). Two honest readings:
+β, myoglobin, lysozyme (63–218 aa) — with a *one-line* change (`DNA → PROTEIN`).
+Family classification: FPC 0.550 vs. a 3-mer + 1-NN baseline 0.800; family
+clustering purity: FPC 0.675 vs. FFP 0.425 (chance 0.25). Two honest readings:
 (i) the identical engine runs unchanged on the 20-symbol alphabet and beats
 chance — the alphabet-agnostic claim holds on real data; (ii) on these *short*
 (≈150 aa), partly-overlapping families (myoglobin and haemoglobin are both
@@ -438,7 +438,7 @@ the composition baseline on classification. FPC is a *learned* model and is
 data-starved when each class is only a handful of short sequences — a genuine
 limitation, not a bug.
 
-![Fig 10](../output/protein_phylogeny.png)
+![Fig 10](../docs/img/protein_phylogeny.png)
 
 ### 3.9 Community-standard benchmark: Robinson–Foulds on real mitogenomes (Fig. 11)
 
@@ -456,7 +456,7 @@ standard tools and the NCCD prior-art distance, sits a little behind NRC, and th
 whole-model unification and interpretability come at essentially no cost in tree
 accuracy. We do not claim to beat the specialised distances — we match them.
 
-![Fig 11](../output/figures/fig11_rf_benchmark.png)
+![Fig 11](../docs/img/fig11_rf_benchmark.png)
 
 ---
 
@@ -522,12 +522,13 @@ its own prediction failures, rather than tiling space uniformly.
 
 ```
 pip install -e .[all]
-pytest -q                       # 15 correctness tests, incl. the CGR property
+pytest -q                       # 42 correctness, parity, and CLI tests, incl. the CGR property
 python benchmarks/bench.py      # synthetic experiments + figures 1-5
 python benchmarks/phylo_stats.py# 25-tree CIs + Wilcoxon vs Mash/FFP (Fig 9)
 python benchmarks/rf_benchmark.py# Robinson-Foulds on real mitogenomes (Fig 11)
 python examples/big_study.py    # 28 real viral genomes, 5 families (Figs 7, 8)
 python examples/protein_study.py# 40 real proteins, 4 families (Fig 10)
+python examples/bacterial_islands.py # 10.14 Mb E. coli K-12 vs O157:H7 Sakai islands
 python examples/make_visuals.py # the interactive 3-D artifacts
 ```
 

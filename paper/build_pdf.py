@@ -70,9 +70,9 @@ def find_chromium():
     # 2) Playwright bundled chromium across Linux, macOS, and Windows
     home = os.path.expanduser("~")
     patterns = [
-        os.path.join(home, ".cache", "ms-playwright", "chromium-*", "chrome-linux", "chrome"),
-        os.path.join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"),
-        os.path.join(home, "AppData", "Local", "ms-playwright", "chromium-*", "chrome-win", "chrome.exe"),
+        os.path.join(home, ".cache", "ms-playwright", "chromium-*", "chrome-linux*", "chrome"),
+        os.path.join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac*", "Chromium.app", "Contents", "MacOS", "Chromium"),
+        os.path.join(home, "AppData", "Local", "ms-playwright", "chromium-*", "chrome-win*", "chrome.exe"),
     ]
     for pat in patterns:
         hits = glob.glob(pat)
