@@ -182,14 +182,14 @@ unit square for DNA; a regular polygon on a circle otherwise). Starting from the
 centre `p₀ = (½, ½)`, read the sequence and iterate the contraction map
 
 ```
-    p_t = (1 − r) · p_{t−1} + r · v(s_t),        0 < r < 1.
+    p_t = r · p_{t−1} + (1 − r) · v(s_t),        0 < r < 1.
 ```
 
 For DNA we use the classical `r = ½`; in general `r = min(½, sin(π/a))` keeps the
 per-symbol sub-copies from overlapping. Because the map is a contraction, the
-influence of a symbol decays as `(1−r)` per step, so **`p_t` is an
+influence of a prior symbol decays as `r` per step, so **`p_t` is an
 exponentially-weighted memory of the recent suffix**. Concretely, two positions
-whose last *k* symbols agree differ by at most `~(1−r)^k` in position (empirically
+whose last *k* symbols agree differ by at most `~r^k` in position (empirically
 `0.5^8·√2 ≈ 0.0055` for an 8-symbol shared suffix, versus `~0.1` for a different
 suffix — a >10× separation; see `tests/test_core.py::test_cgr_shared_suffix_are_close`).
 We call `C_t = p_{t−1}` the **context point** for position *t*: the geometric
@@ -430,16 +430,16 @@ proteins** (pinned NCBI RefSeq vertebrate orthologs) spanning four families —
 cytochrome c (`CYCS`), haemoglobin β (`HBB`), myoglobin (`MB`), and lysozyme C
 (`LYZ`) across ten vertebrate species (104–200 aa) — with a *one-line* change
 (`DNA → PROTEIN`). At the unmodified DNA default `order=4`, held-out family
-classification accuracy is **FPC 0.850** vs. a 3-mer + 1-NN baseline **1.000**,
-and family clustering purity is **FPC 0.550** vs. FFP (`k=2`, JSD) **0.775**
-(chance 0.25); reducing `order=1` to match the 20-letter alphabet density ($20^1=20$
-vs. $20^4=160{,}000$) raises FPC to **0.900** classification accuracy and **0.775**
-clustering purity (tying FFP). Two honest readings: (i) the identical engine runs
-unchanged on the 20-symbol alphabet and achieves 85–90% held-out family accuracy —
-the alphabet-agnostic claim holds on real data; (ii) on these *short* (104–200 aa)
-single-domain proteins, composition/3-mer baselines remain slightly stronger on
-classification because an online generative model is data-starved when each class
-is only five short sequences — a genuine limitation, not a bug.
+classification accuracy is **FPC 0.950 (19/20)** vs. a 3-mer + 1-NN baseline
+**1.000**, and unsupervised family clustering purity is **FPC 0.775**, tying FFP
+(`k=2`, JSD, **0.775**; chance 0.25); at `order=3`, FPC reaches **1.000**
+classification accuracy and **1.000** clustering purity across all four families.
+Two honest readings: (i) the identical engine runs unchanged on the 20-symbol
+alphabet and achieves 95–100% held-out family accuracy and 77.5–100% clustering
+purity — the alphabet-agnostic claim holds on real data; (ii) at `order=4` on short
+(104–200 aa) sequences, a 3-mer composition baseline still edges out FPC by one test
+protein (20/20 vs. 19/20) because an online generative model has only five short
+sequences per class.
 
 ![Fig 10](../docs/img/protein_phylogeny.png)
 

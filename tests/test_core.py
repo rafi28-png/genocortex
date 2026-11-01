@@ -48,7 +48,7 @@ def test_cgr_shared_suffix_are_close():
     pb = emb.embed(b)[-1]
     # different suffix control
     c = emb.embed(DNA.encode("AAAACCCCTGCATGCA"))[-1]
-    # Sharing a k=8 suffix forces distance <= ~(1-r)^8 * prefix-gap = 0.5^8*sqrt(2)
+    # Sharing a k=8 suffix forces distance <= ~r^8 * prefix-gap = 0.5^8*sqrt(2)
     # ~ 0.0055; the different-suffix control is ~20x larger. That >10x gap IS the
     # "geometry encodes recent context" property the engine depends on.
     assert np.linalg.norm(pa - pb) < 0.01
@@ -60,6 +60,11 @@ def test_cgr_protein_generalises():
     emb = ChaosGameEmbedding(PROTEIN)
     P = emb.embed(PROTEIN.encode("MKV" * 100))
     assert P.shape == (300, 2) and np.isfinite(P).all()
+    pa = emb.embed("AAAAAAAAMGDVEKGK")[-1]
+    pb = emb.embed("WWWWWWWWMGDVEKGK")[-1]
+    pc = emb.embed("WWWWWWWWLLLLLLLL")[-1]
+    assert np.linalg.norm(pa - pb) <= (emb.r ** 8) * np.sqrt(2) + 1e-12
+    assert np.linalg.norm(pa - pc) > 10 * np.linalg.norm(pa - pb)
 
 
 # --------------------------------------------------------------------- #

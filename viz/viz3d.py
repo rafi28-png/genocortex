@@ -263,6 +263,83 @@ def _style_scene(fig, title, xaxis, yaxis, zaxis):
     )
 
 
+def _render_png_fallback(fig, png_path: str) -> None:
+    """Render a dark-themed 3-D PNG via Matplotlib when Kaleido is unavailable."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig_mpl = plt.figure(figsize=(14, 10), dpi=100, facecolor=PAGE)
+    ax = fig_mpl.add_subplot(111, projection="3d", facecolor=PAGE)
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        try:
+            axis.pane.set_facecolor(SURFACE)
+            axis.pane.set_edgecolor(GRID)
+        except Exception:
+            pass
+        axis._axinfo["grid"]["color"] = GRID
+        axis.label.set_color(INK2)
+    ax.tick_params(colors=MUTED, labelsize=8)
+
+    scene = fig.layout.scene
+    if scene and scene.xaxis and scene.xaxis.title:
+        ax.set_xlabel(scene.xaxis.title.text or "X", color=INK2, fontsize=10)
+    if scene and scene.yaxis and scene.yaxis.title:
+        ax.set_ylabel(scene.yaxis.title.text or "Y", color=INK2, fontsize=10)
+    if scene and scene.zaxis and scene.zaxis.title:
+        ax.set_zlabel(scene.zaxis.title.text or "Z", color=INK2, fontsize=10)
+    if fig.layout.title and fig.layout.title.text:
+        ax.set_title(fig.layout.title.text, color=INK, fontsize=13, pad=16)
+
+    labelled_mst = False
+    for tr in fig.data:
+        ttype = getattr(tr, "type", "")
+        if ttype == "surface":
+            xs = np.asarray(tr.x, dtype=float)
+            ys = np.asarray(tr.y, dtype=float)
+            zs = np.asarray(tr.z, dtype=float)
+            X, Y = np.meshgrid(xs, ys)
+            fill_val = float(np.nanmin(zs)) if np.any(np.isfinite(zs)) else 0.0
+            Z = np.where(np.isfinite(zs), zs, fill_val)
+            ax.plot_surface(X, Y, Z, cmap="Blues", alpha=0.82, linewidth=0, antialiased=True)
+        elif ttype == "scatter3d":
+            mode = getattr(tr, "mode", "") or ""
+            if "lines" in mode:
+                ex, ey, ez = list(tr.x or []), list(tr.y or []), list(tr.z or [])
+                for i in range(0, len(ex) - 1):
+                    if ex[i] is not None and ex[i + 1] is not None:
+                        lbl = getattr(tr, "name", "lineage (MST)") if not labelled_mst else None
+                        ax.plot(
+                            [float(ex[i]), float(ex[i + 1])],
+                            [float(ey[i]), float(ey[i + 1])],
+                            [float(ez[i]), float(ez[i + 1])],
+                            color=MUTED, linewidth=1.2, alpha=0.75, label=lbl,
+                        )
+                        labelled_mst = True
+            if "markers" in mode:
+                xs = np.asarray(tr.x, dtype=float)
+                ys = np.asarray(tr.y, dtype=float)
+                zs = np.asarray(tr.z, dtype=float)
+                col = getattr(tr.marker, "color", CATEGORICAL[0]) if tr.marker else CATEGORICAL[0]
+                if not isinstance(col, str):
+                    col = CATEGORICAL[0]
+                ax.scatter(
+                    xs, ys, zs, c=col, s=42, alpha=0.95, depthshade=False,
+                    edgecolors=SURFACE, linewidths=0.5, label=getattr(tr, "name", None),
+                )
+                if "text" in mode and getattr(tr, "text", None) is not None:
+                    for x, y, z, txt in zip(xs, ys, zs, tr.text):
+                        ax.text(float(x), float(y), float(z), str(txt), color=INK2, fontsize=7, ha="center", va="bottom")
+
+    handles, labels_leg = ax.get_legend_handles_labels()
+    if handles:
+        leg = ax.legend(loc="upper right", frameon=False, fontsize=9)
+        for text in leg.get_texts():
+            text.set_color(INK2)
+    fig_mpl.savefig(png_path, dpi=100, facecolor=PAGE, bbox_inches="tight", pad_inches=0.3)
+    plt.close(fig_mpl)
+
+
 def _write(fig, out_path: str, png_path: str | None = None) -> str:
     # include_plotlyjs="inline" -> a fully self-contained, offline HTML file.
     fig.write_html(out_path, include_plotlyjs="inline", full_html=True,
@@ -270,6 +347,6 @@ def _write(fig, out_path: str, png_path: str | None = None) -> str:
     if png_path:
         try:
             fig.write_image(png_path, width=1400, height=1000, scale=2)
-        except Exception as exc:  # pragma: no cover - kaleido/chrome optional
-            print(f"  (PNG export skipped: {exc})")
+        except Exception:  # pragma: no cover - fallback to Matplotlib 3D when Kaleido is absent
+            _render_png_fallback(fig, png_path)
     return out_path

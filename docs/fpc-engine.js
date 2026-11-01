@@ -289,8 +289,8 @@ export class ChaosGameEmbedding {
     for (let t = 0; t < T; t++) {
       let s = ids[t];
       if (s < 0 || s >= nVerts) s = wildIdx;
-      px = omr * px + r * verts[2 * s];
-      py = omr * py + r * verts[2 * s + 1];
+      px = r * px + omr * verts[2 * s];
+      py = r * py + omr * verts[2 * s + 1];
       P[2 * t] = px;
       P[2 * t + 1] = py;
     }

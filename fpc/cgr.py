@@ -7,7 +7,7 @@ turns a symbolic sequence into a trajectory of points in the unit plane by a
 simple iterated contraction map::
 
     p_0 = centre
-    p_t = (1 - r) * p_{t-1} + r * vertex(symbol_t)
+    p_t = r * p_{t-1} + (1 - r) * vertex(symbol_t)
 
 Each canonical symbol owns one *vertex*; the wildcard pulls gently toward the
 centre (it carries no positional information).
@@ -101,9 +101,9 @@ class ChaosGameEmbedding:
         """Return the CGR trajectory ``P`` with ``P[t]`` = point *after* symbol
         ``t``. Shape ``(T, 2)``. Accelerated in C when ``fpc._fast`` is built.
 
-        The recurrence ``p_t = (1-r) p_{t-1} + r v_t`` is linear, hence
+        The recurrence ``p_t = r p_{t-1} + (1-r) v_t`` is linear, hence
 
-            ``p_t = (1-r)^{t+1} centre + r * sum_{j<=t} (1-r)^{t-j} v_j``.
+            ``p_t = r^{t+1} centre + (1-r) * sum_{j<=t} r^{t-j} v_j``.
         """
         ids_c = self._coerce_ids(ids)
         T = ids_c.shape[0]
@@ -130,9 +130,9 @@ class ChaosGameEmbedding:
         r = self.r
         one_minus = 1.0 - r
         acc = self.centre.copy()
-        rv = r * v                                        # precompute r * vertex
+        omv = one_minus * v                               # precompute (1 - r) * vertex
         for t in range(T):
-            acc = one_minus * acc + rv[t]
+            acc = r * acc + omv[t]
             P[t] = acc
         return P
 

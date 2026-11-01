@@ -381,10 +381,10 @@ static PyObject *py_cgr_embed(PyObject *self, PyObject *args) {
         if (s < 0 || s >= n_verts) {
             s = n_verts - 1;
         }
-        double rv_x = r * verts[2 * s];
-        double rv_y = r * verts[2 * s + 1];
-        acc_x = one_minus * acc_x + rv_x;
-        acc_y = one_minus * acc_y + rv_y;
+        double omv_x = one_minus * verts[2 * s];
+        double omv_y = one_minus * verts[2 * s + 1];
+        acc_x = r * acc_x + omv_x;
+        acc_y = r * acc_y + omv_y;
         out_P[2 * t]     = acc_x;
         out_P[2 * t + 1] = acc_y;
     }
