@@ -37,20 +37,70 @@ SPECIES = ["Homo sapiens", "Mus musculus", "Rattus norvegicus", "Bos taurus",
            "Gallus gallus", "Sus scrofa", "Danio rerio", "Xenopus laevis",
            "Canis lupus familiaris", "Equus caballus"]
 
+# Pinned NCBI RefSeq vertebrate ortholog accessions (CYCS, HBB, MB, LYZ)
+CATALOG = {
+    "cytochrome c": {
+        "Homo sapiens": "NP_061820.1",
+        "Mus musculus": "NP_031834.1",
+        "Rattus norvegicus": "NP_036971.1",
+        "Bos taurus": "NP_001039526.1",
+        "Gallus gallus": "NP_001385227.1",
+        "Sus scrofa": "NP_001123442.1",
+        "Danio rerio": "NP_001002068.1",
+        "Xenopus laevis": "NP_001086101.1",
+        "Canis lupus familiaris": "NP_001183974.1",
+        "Equus caballus": "NP_001157486.2",
+    },
+    "hemoglobin beta": {
+        "Homo sapiens": "NP_000509.1",
+        "Mus musculus": "NP_032246.2",
+        "Rattus norvegicus": "NP_150237.1",
+        "Bos taurus": "NP_776342.1",
+        "Gallus gallus": "NP_990820.1",
+        "Sus scrofa": "NP_001138313.1",
+        "Danio rerio": "NP_571095.1",
+        "Xenopus laevis": "NP_001079742.1",
+        "Canis lupus familiaris": "NP_001257813.1",
+        "Equus caballus": "NP_001157490.1",
+    },
+    "myoglobin": {
+        "Homo sapiens": "NP_001369738.1",
+        "Mus musculus": "NP_001157520.1",
+        "Rattus norvegicus": "NP_067599.1",
+        "Bos taurus": "NP_776306.1",
+        "Gallus gallus": "NP_001161224.1",
+        "Sus scrofa": "NP_999401.1",
+        "Danio rerio": "NP_001349318.1",
+        "Xenopus laevis": "XP_018086709.1",
+        "Canis lupus familiaris": "XP_038535952.1",
+        "Equus caballus": "NP_001157488.1",
+    },
+    "lysozyme": {
+        "Homo sapiens": "NP_000230.1",
+        "Mus musculus": "NP_038618.1",
+        "Rattus norvegicus": "NP_036903.2",
+        "Bos taurus": "NP_001071627.1",
+        "Gallus gallus": "NP_990612.2",
+        "Sus scrofa": "NP_999557.2",
+        "Danio rerio": "NP_631919.1",
+        "Xenopus laevis": "XP_018090286.2",
+        "Canis lupus familiaris": "NP_001287805.1",
+        "Equus caballus": "NP_001421609.1",
+    },
+}
+
 
 def get_protein(fam, sp):
     key = f"{fam}_{sp}".replace(" ", "_")
     path = os.path.join(DATA, f"{key}.fasta")
+    acc = CATALOG[fam][sp]
     if os.path.exists(path):
-        return io_fasta.read_fasta(path)[0].seq
-    term = f'{fam} AND "{sp}"[Organism] AND refseq[Filter] AND 50:250[Sequence Length]'
-    uids = fetch.ncbi_search(term, db="protein", email=EMAIL, retmax=1)
+        recs = io_fasta.read_fasta(path)
+        if recs and acc in recs[0].description:
+            return recs[0].seq
+    rec = fetch.ncbi_fasta(acc, db="protein", email=EMAIL)
     time.sleep(0.34)
-    if not uids:
-        raise ValueError("no hit")
-    rec = fetch.ncbi_fasta(uids[0], db="protein", email=EMAIL)
-    time.sleep(0.34)
-    io_fasta.write_fasta(path, [(key, rec.seq)])
+    io_fasta.write_fasta(path, [(f"{key} {rec.description}", rec.seq)])
     return rec.seq
 
 

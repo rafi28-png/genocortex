@@ -27,13 +27,14 @@ class Record:
         return len(self.seq)
 
 
-def _open_text(path: str):
-    if path.endswith(".gz"):
-        return io.TextIOWrapper(gzip.open(path, "rb"), encoding="utf-8")
-    return open(path, "r", encoding="utf-8")
+def _open_text(path: str | os.PathLike[str]):
+    path_str = os.fspath(path)
+    if path_str.lower().endswith(".gz"):
+        return io.TextIOWrapper(gzip.open(path_str, "rb"), encoding="utf-8")
+    return open(path_str, "r", encoding="utf-8")
 
 
-def read_fasta(path: str) -> list[Record]:
+def read_fasta(path: str | os.PathLike[str]) -> list[Record]:
     """Read every record from a (optionally gzipped) FASTA file."""
     records: list[Record] = []
     header = None
@@ -66,18 +67,19 @@ def read_fasta(path: str) -> list[Record]:
     return records
 
 
-def read_fasta_dir(directory: str, exts=(".fasta", ".fa", ".fna", ".ffn", ".fasta.gz", ".fa.gz")) -> list[Record]:
+def read_fasta_dir(directory: str | os.PathLike[str], exts=(".fasta", ".fa", ".fna", ".ffn", ".fasta.gz", ".fa.gz")) -> list[Record]:
     """Read every FASTA file in a directory (non-recursive)."""
+    dir_str = os.fspath(directory)
     out: list[Record] = []
-    for name in sorted(os.listdir(directory)):
+    for name in sorted(os.listdir(dir_str)):
         if name.lower().endswith(exts):
-            out.extend(read_fasta(os.path.join(directory, name)))
+            out.extend(read_fasta(os.path.join(dir_str, name)))
     return out
 
 
-def write_fasta(path: str, records, width: int = 70) -> None:
+def write_fasta(path: str | os.PathLike[str], records, width: int = 70) -> None:
     """Write records (``Record`` objects or ``(id, seq)`` tuples) to FASTA."""
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+    with open(os.fspath(path), "w", encoding="utf-8", newline="\n") as fh:
         for rec in records:
             if isinstance(rec, Record):
                 rid, desc, seq = rec.id, rec.description, rec.seq

@@ -55,22 +55,23 @@ class SeqRecord(Record):
 
 
 @contextmanager
-def _open_text_stream(path: str):
+def _open_text_stream(path: str | os.PathLike[str]):
     """Open plain text, ``.gz``, or ``"-"`` (stdin) as a UTF-8 text stream."""
-    if path == "-":
+    path_str = os.fspath(path)
+    if path_str == "-":
         yield sys.stdin
         return
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Sequence file not found: {path!r}")
-    if path.lower().endswith(".gz"):
-        gz = gzip.open(path, "rb")
+    if not os.path.exists(path_str):
+        raise FileNotFoundError(f"Sequence file not found: {path_str!r}")
+    if path_str.lower().endswith(".gz"):
+        gz = gzip.open(path_str, "rb")
         wrapper = io.TextIOWrapper(gz, encoding="utf-8", errors="replace")
         try:
             yield wrapper
         finally:
             wrapper.close()
     else:
-        fh = open(path, "r", encoding="utf-8", errors="replace")
+        fh = open(path_str, "r", encoding="utf-8", errors="replace")
         try:
             yield fh
         finally:

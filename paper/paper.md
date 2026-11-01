@@ -426,17 +426,20 @@ with the unification and the 3-D map that no single-purpose baseline provides.
 ### 3.8 Real proteins: the same engine on a 20-letter alphabet (`examples/protein_study.py`)
 
 FPC's core claim is that it is alphabet-agnostic. We test it on **40 real
-proteins** (fetched from NCBI) spanning four families — cytochrome c, haemoglobin
-β, myoglobin, lysozyme (63–218 aa) — with a *one-line* change (`DNA → PROTEIN`).
-Family classification: FPC 0.550 vs. a 3-mer + 1-NN baseline 0.800; family
-clustering purity: FPC 0.675 vs. FFP 0.425 (chance 0.25). Two honest readings:
-(i) the identical engine runs unchanged on the 20-symbol alphabet and beats
-chance — the alphabet-agnostic claim holds on real data; (ii) on these *short*
-(≈150 aa), partly-overlapping families (myoglobin and haemoglobin are both
-globins), neither FPC nor the k-mer baseline excels, and FPC does not outperform
-the composition baseline on classification. FPC is a *learned* model and is
-data-starved when each class is only a handful of short sequences — a genuine
-limitation, not a bug.
+proteins** (pinned NCBI RefSeq vertebrate orthologs) spanning four families —
+cytochrome c (`CYCS`), haemoglobin β (`HBB`), myoglobin (`MB`), and lysozyme C
+(`LYZ`) across ten vertebrate species (104–200 aa) — with a *one-line* change
+(`DNA → PROTEIN`). At the unmodified DNA default `order=4`, held-out family
+classification accuracy is **FPC 0.850** vs. a 3-mer + 1-NN baseline **1.000**,
+and family clustering purity is **FPC 0.550** vs. FFP (`k=2`, JSD) **0.775**
+(chance 0.25); reducing `order=1` to match the 20-letter alphabet density ($20^1=20$
+vs. $20^4=160{,}000$) raises FPC to **0.900** classification accuracy and **0.775**
+clustering purity (tying FFP). Two honest readings: (i) the identical engine runs
+unchanged on the 20-symbol alphabet and achieves 85–90% held-out family accuracy —
+the alphabet-agnostic claim holds on real data; (ii) on these *short* (104–200 aa)
+single-domain proteins, composition/3-mer baselines remain slightly stronger on
+classification because an online generative model is data-starved when each class
+is only five short sequences — a genuine limitation, not a bug.
 
 ![Fig 10](../docs/img/protein_phylogeny.png)
 

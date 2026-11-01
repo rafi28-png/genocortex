@@ -1044,6 +1044,47 @@ def test_surprise_anomalies_cli_predict_classifier_mst_fasta_and_datasets(tmp_pa
         abs_img = os.path.normpath(os.path.join(REPO_ROOT, "paper", rel_src))
         assert os.path.isfile(abs_img), f"Missing figure referenced by paper.md: {abs_img}"
 
+    # 8. PathLike support in io_fasta/io_seq, raw string inputs in ChaosGameEmbedding & FractalPredictiveCortex, and verified RefSeq protein cache
+    from fpc.cgr import ChaosGameEmbedding
+    fa_path = tmp_path / "pathlike.fa"
+    io_fasta.write_fasta(fa_path, [("s1", "ACGTACGT")])
+    assert io_fasta.read_fasta(fa_path)[0].seq == "ACGTACGT"
+    assert io_seq.read_sequences(fa_path)[0].seq == "ACGTACGT"
+
+    emb_default = ChaosGameEmbedding()
+    assert np.allclose(emb_default.embed("ACGT"), emb_default.embed(DNA.encode("ACGT")))
+    assert np.allclose(emb_default.context_points("ACGT"), emb_default.context_points(DNA.encode("ACGT")))
+    assert np.allclose(emb_default.density_image("ACGT", grid=8), emb_default.density_image(DNA.encode("ACGT"), grid=8))
+
+    cx_str = FractalPredictiveCortex(order=3)
+    cx_ids = FractalPredictiveCortex(DNA, order=3)
+    assert np.allclose(cx_str.fit("ACGTACGT").bits, cx_ids.fit(DNA.encode("ACGTACGT")).bits)
+    assert np.allclose(cx_str.score("ACGT").bits, cx_ids.score(DNA.encode("ACGT")).bits)
+    assert np.allclose(cx_str.predict_next("ACG"), cx_ids.predict_next(DNA.encode("ACG")))
+    assert np.isclose(cx_str.cross_entropy("ACGT", strand_aware=True), cx_ids.cross_entropy(DNA.encode("ACGT"), strand_aware=True))
+    assert cx_str.cross_entropy_with_strand("ACGT") == cx_ids.cross_entropy_with_strand(DNA.encode("ACGT"))
+    assert len(cx_str.generate("ACG", 5, sample=False)) == 8
+
+    from examples import protein_study
+    from benchmarks import rf_benchmark
+    assert len(protein_study.FAMILIES) == 4 and len(protein_study.SPECIES) == 10
+    assert sum(len(v) for v in protein_study.CATALOG.values()) == 40
+    for fam in protein_study.FAMILIES:
+        for sp in protein_study.SPECIES:
+            acc = protein_study.CATALOG[fam][sp]
+            assert acc.startswith(("NP_", "XP_"))
+    assert len(rf_benchmark.SPECIES) == 17 and "Horse" not in rf_benchmark.SPECIES
+
+    prot_dir = os.path.join(REPO_ROOT, "data", "proteins")
+    if os.path.isdir(prot_dir):
+        prot_files = [f for f in os.listdir(prot_dir) if f.endswith(".fasta")]
+        assert len(prot_files) == 40
+        for fn in prot_files:
+            rec = io_fasta.read_fasta(os.path.join(prot_dir, fn))[0]
+            assert 104 <= len(rec.seq) <= 200, f"Unexpected protein length in {fn}: {len(rec.seq)}"
+            if fn.startswith("cytochrome_c_"):
+                assert rec.seq.startswith(("MGDVEKGKK", "MGDIEKGKK")), f"Non-CYCS sequence in {fn}"
+
 
 def test_js_engine_and_worker_edge_case_validations():
     node_bin = _find_node()

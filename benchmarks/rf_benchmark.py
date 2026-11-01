@@ -40,7 +40,7 @@ OUT = os.path.join(ROOT, "output")
 FIG = os.path.join(OUT, "figures")
 os.makedirs(DATA, exist_ok=True); os.makedirs(FIG, exist_ok=True)
 
-# label -> species (for NCBI search)
+# label -> species (for NCBI search; 17 mammalian RefSeq mitogenomes)
 SPECIES = {
     "Human": "Homo sapiens", "Chimp": "Pan troglodytes", "Gorilla": "Gorilla gorilla",
     "Orangutan": "Pongo abelii", "Macaque": "Macaca mulatta",
@@ -48,7 +48,7 @@ SPECIES = {
     "Rabbit": "Oryctolagus cuniculus",
     "Dog": "Canis lupus familiaris", "Cat": "Felis catus",
     "Cow": "Bos taurus", "Pig": "Sus scrofa", "Whale": "Balaenoptera physalus",
-    "Horse": "Equus caballus", "Bat": "Pteropus vampyrus",
+    "Bat": "Pteropus vampyrus",
     "Elephant": "Loxodonta africana",
     "Opossum": "Monodelphis domestica",
 }
@@ -58,7 +58,7 @@ SPECIES = {
 _PRIMATES = "((((Human,Chimp),Gorilla),Orangutan),Macaque)"
 _GLIRES = "(((Mouse,Rat),GuineaPig),Rabbit)"
 _EUARCH = f"({_PRIMATES},{_GLIRES})"
-_LAURASIA = "((Dog,Cat),(Cow,Pig,Whale),Horse,Bat)"      # internal polytomy (debated)
+_LAURASIA = "((Dog,Cat),(Cow,Pig,Whale),Bat)"            # internal polytomy (debated)
 _BOREO = f"({_EUARCH},{_LAURASIA})"
 _PLACENTALIA = f"({_BOREO},Elephant)"                    # Afrotheria = Elephant
 REFERENCE = f"({_PLACENTALIA},Opossum);"                 # root on marsupial outgroup

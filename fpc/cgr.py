@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .alphabet import Alphabet
+from .alphabet import Alphabet, DNA
 
 try:
     from . import _fast
@@ -50,7 +50,7 @@ class ChaosGameEmbedding:
     Parameters
     ----------
     alphabet:
-        The :class:`~fpc.alphabet.Alphabet` in use.
+        The :class:`~fpc.alphabet.Alphabet` in use (default :data:`~fpc.alphabet.DNA`).
     contraction:
         Optional override for the contraction ratio ``r``. If ``None`` a good
         default is chosen from the alphabet size (see module docstring).
@@ -58,7 +58,7 @@ class ChaosGameEmbedding:
         Use the compiled C kernel ``fpc._fast`` when available (default True).
     """
 
-    def __init__(self, alphabet: Alphabet, contraction: float | None = None,
+    def __init__(self, alphabet: Alphabet = DNA, contraction: float | None = None,
                  use_fast: bool = True):
         self.alphabet = alphabet
         a = alphabet.size
@@ -74,6 +74,12 @@ class ChaosGameEmbedding:
         self._all_vertices = np.ascontiguousarray(
             np.vstack([self.vertices, self.centre]), dtype=np.float64
         )
+
+    def _coerce_ids(self, ids: np.ndarray | str | bytes) -> np.ndarray:
+        if isinstance(ids, (str, bytes)):
+            s = ids if isinstance(ids, str) else ids.decode("ascii", "replace")
+            return np.ascontiguousarray(self.alphabet.encode(s), dtype=np.int64)
+        return np.ascontiguousarray(ids, dtype=np.int64)
 
     # -- geometry --------------------------------------------------------
     @staticmethod
@@ -91,7 +97,7 @@ class ChaosGameEmbedding:
                                 0.5 + 0.5 * np.sin(theta)]).astype(np.float64)
 
     # -- the core map ----------------------------------------------------
-    def embed(self, ids: np.ndarray, use_fast: bool | None = None) -> np.ndarray:
+    def embed(self, ids: np.ndarray | str | bytes, use_fast: bool | None = None) -> np.ndarray:
         """Return the CGR trajectory ``P`` with ``P[t]`` = point *after* symbol
         ``t``. Shape ``(T, 2)``. Accelerated in C when ``fpc._fast`` is built.
 
@@ -99,7 +105,7 @@ class ChaosGameEmbedding:
 
             ``p_t = (1-r)^{t+1} centre + r * sum_{j<=t} (1-r)^{t-j} v_j``.
         """
-        ids_c = np.ascontiguousarray(ids, dtype=np.int64)
+        ids_c = self._coerce_ids(ids)
         T = ids_c.shape[0]
         if T == 0:
             return np.empty((0, 2), dtype=np.float64)
@@ -130,7 +136,7 @@ class ChaosGameEmbedding:
             P[t] = acc
         return P
 
-    def context_points(self, ids: np.ndarray, use_fast: bool | None = None) -> np.ndarray:
+    def context_points(self, ids: np.ndarray | str | bytes, use_fast: bool | None = None) -> np.ndarray:
         """Points that represent the *context preceding* each position.
 
         ``C[t]`` is where the trajectory sits just before symbol ``t`` is read,
@@ -156,8 +162,8 @@ class ChaosGameEmbedding:
         trajectory visited each cell (row-normalised to a probability).
         """
         pts = ids_or_points
-        if np.ndim(pts) == 1:
-            pts = self.embed(np.asarray(pts))
+        if isinstance(pts, (str, bytes)) or np.ndim(pts) == 1:
+            pts = self.embed(pts)
         if len(pts) == 0:
             return np.zeros((grid, grid), dtype=np.float64)
         ij = np.clip((pts * grid).astype(np.int64), 0, grid - 1)

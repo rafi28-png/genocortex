@@ -43,7 +43,7 @@ from __future__ import annotations
 import json
 import numpy as np
 
-from .alphabet import Alphabet
+from .alphabet import Alphabet, DNA
 from .cgr import ChaosGameEmbedding
 from .surprise import SurpriseTrack
 
@@ -69,7 +69,7 @@ class FractalPredictiveCortex:
     Parameters
     ----------
     alphabet:
-        The symbol alphabet (DNA / RNA / PROTEIN / custom).
+        The symbol alphabet (DNA / RNA / PROTEIN / custom; default DNA).
     order:
         Target effective memory depth (in symbols). Sets the prototype split
         resolution ``dist_threshold = r ** order``. Larger = longer context,
@@ -105,7 +105,7 @@ class FractalPredictiveCortex:
 
     def __init__(
         self,
-        alphabet: Alphabet,
+        alphabet: Alphabet = DNA,
         order: int = 8,
         contraction: float | None = None,
         n_neighbors: int = 8,
@@ -258,9 +258,15 @@ class FractalPredictiveCortex:
         p /= p.sum()
         return p, int(nearest_local), nearest_dist
 
-    def predict_next(self, prefix_ids: np.ndarray) -> np.ndarray:
+    def _coerce_ids(self, ids: np.ndarray | str | bytes) -> np.ndarray:
+        if isinstance(ids, (str, bytes)):
+            s = ids if isinstance(ids, str) else ids.decode("ascii", "replace")
+            return np.ascontiguousarray(self.alphabet.encode(s), dtype=np.int64)
+        return np.ascontiguousarray(ids, dtype=np.int64)
+
+    def predict_next(self, prefix_ids: np.ndarray | str | bytes) -> np.ndarray:
         """Distribution over the symbol that follows ``prefix_ids``."""
-        prefix_ids = np.asarray(prefix_ids)
+        prefix_ids = self._coerce_ids(prefix_ids)
         if len(prefix_ids) == 0:
             c = self.embedding.centre
         else:
@@ -284,14 +290,14 @@ class FractalPredictiveCortex:
         std = np.sqrt(var)
         return bits > self._surp_mean + 2.0 * std
 
-    def fit(self, ids: np.ndarray, epochs: int = 1, update: bool = True,
+    def fit(self, ids: np.ndarray | str | bytes, epochs: int = 1, update: bool = True,
             double_strand: bool = False) -> SurpriseTrack:
         """Stream a sequence through the cortex, learning as it goes.
 
         Parameters
         ----------
         ids:
-            Encoded symbol-id array.
+            Encoded symbol-id array or raw sequence string.
         epochs:
             Number of passes over the sequence.
         update:
@@ -303,7 +309,7 @@ class FractalPredictiveCortex:
 
         Returns the :class:`SurpriseTrack` from the **final** forward pass.
         """
-        ids = np.asarray(ids, dtype=np.int64)
+        ids = self._coerce_ids(ids)
         rc_ids = (
             self.alphabet.reverse_complement_ids(ids).astype(np.int64)
             if (double_strand and update and self.alphabet.is_complementary and len(ids) > 0)
@@ -316,13 +322,13 @@ class FractalPredictiveCortex:
                 self._stream(rc_ids, update=True)
         return track
 
-    def score(self, ids: np.ndarray) -> SurpriseTrack:
+    def score(self, ids: np.ndarray | str | bytes) -> SurpriseTrack:
         """Score a sequence **without learning** -- a frozen forward pass.
 
         This is what classification and clean anomaly detection use: how many
         bits does *this already-trained brain* spend to explain the sequence?
         """
-        ids_c = np.ascontiguousarray(ids, dtype=np.int64)
+        ids_c = self._coerce_ids(ids)
         if len(ids_c) == 0:
             return SurpriseTrack(np.empty(0, dtype=np.float64))
 
@@ -511,12 +517,13 @@ class FractalPredictiveCortex:
     # ------------------------------------------------------------------ #
     #  read-outs used by the four abilities                              #
     # ------------------------------------------------------------------ #
-    def cross_entropy(self, ids: np.ndarray, strand_aware: bool = False) -> float:
+    def cross_entropy(self, ids: np.ndarray | str | bytes, strand_aware: bool = False) -> float:
         """Average surprise (bits/symbol) this brain spends on ``ids``.
 
         If ``strand_aware=True`` and the alphabet is complementary (DNA/RNA),
         returns ``min(CE(ids), CE(rc(ids)))``.
         """
+        ids = self._coerce_ids(ids)
         ce_fwd = self.score(ids).mean_bits
         if strand_aware and self.alphabet.is_complementary and len(ids) > 0:
             ce_rev = self.score(self.alphabet.reverse_complement_ids(ids)).mean_bits
@@ -524,8 +531,9 @@ class FractalPredictiveCortex:
                 return ce_rev
         return ce_fwd
 
-    def cross_entropy_with_strand(self, ids: np.ndarray) -> tuple[float, str]:
+    def cross_entropy_with_strand(self, ids: np.ndarray | str | bytes) -> tuple[float, str]:
         """Return ``(best_cross_entropy, strand)`` where strand is ``'+'`` or ``'-'``."""
+        ids = self._coerce_ids(ids)
         ce_fwd = self.score(ids).mean_bits
         if not self.alphabet.is_complementary or len(ids) == 0:
             return ce_fwd, "+"
@@ -534,14 +542,14 @@ class FractalPredictiveCortex:
             return ce_rev, "-"
         return ce_fwd, "+"
 
-    def generate(self, prefix_ids: np.ndarray, length: int,
+    def generate(self, prefix_ids: np.ndarray | str | bytes, length: int,
                  sample: bool = True, temperature: float = 1.0) -> np.ndarray:
         """Continue a sequence for ``length`` symbols using the learned model.
 
         ``sample=False`` takes the arg-max (most likely) symbol each step;
         otherwise it samples with the given ``temperature``.
         """
-        out = list(np.asarray(prefix_ids, dtype=np.int64))
+        out = list(self._coerce_ids(prefix_ids))
         for _ in range(length):
             p = self.predict_next(np.array(out, dtype=np.int64))
             if sample:
